@@ -10,7 +10,10 @@
         <label>Категория</label>
         <select v-model="filterCategory" @change="load">
           <option value="">Все</option>
-          <option>мягкие</option><option>деревянные</option><option>вязаные</option><option>прочее</option>
+          <option>Вязаные игрушки плюш</option>
+          <option>Вязаные игрушки акрил</option>
+          <option>Лотерейные игрушки</option>
+          <option>Брелоки</option>
         </select>
       </div>
       <div class="form-group">
@@ -35,8 +38,8 @@
             <tr v-for="p in products" :key="p.id" class="clickable" @click="$router.push(`/products/${p.id}`)">
               <td>{{ p.name }}</td>
               <td><span class="badge badge-neutral">{{ p.category || '—' }}</span></td>
-              <td>{{ p.sale_price }} ₽</td>
-              <td>{{ p.cost_price ? p.cost_price + ' ₽' : '—' }}</td>
+              <td>{{ p.sale_price }} Br</td>
+              <td>{{ p.cost_price ? p.cost_price + ' Br' : '—' }}</td>
               <td>
                 <span v-if="p.cost_price" :class="margin(p) >= 0 ? 'badge-success' : 'badge-danger'" class="badge">
                   {{ margin(p) }}%
@@ -61,7 +64,10 @@
           <label>Категория</label>
           <select v-model="form.category">
             <option value="">—</option>
-            <option>мягкие</option><option>деревянные</option><option>вязаные</option><option>прочее</option>
+            <option>Вязаные игрушки плюш</option>
+            <option>Вязаные игрушки акрил</option>
+            <option>Лотерейные игрушки</option>
+            <option>Брелоки</option>
           </select>
         </div>
         <div class="form-group"><label>Цена продажи *</label><input v-model="form.sale_price" type="number" step="0.01" /></div>

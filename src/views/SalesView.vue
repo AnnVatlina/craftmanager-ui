@@ -27,7 +27,7 @@
             <tr v-for="s in sales" :key="s.id">
               <td>{{ fmtDate(s.sale_date) }}</td>
               <td>{{ buyerName(s.buyer_id) || '—' }}</td>
-              <td><strong>{{ s.total_amount }} ₽</strong></td>
+              <td><strong>{{ s.total_amount }} Br</strong></td>
               <td style="color:var(--text-muted)">{{ s.notes || '—' }}</td>
               <td><button class="btn-icon" @click="deleteSale(s.id)">🗑</button></td>
             </tr>
@@ -58,12 +58,12 @@
             <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
           <input v-model.number="item.quantity" type="number" min="1" placeholder="Кол-во" />
-          <input v-model="item.price" type="number" step="0.01" placeholder="Цена ₽" />
+          <input v-model="item.price" type="number" step="0.01" placeholder="Цена Br" />
           <button class="btn-icon" @click="form.items.splice(i, 1)" style="color:var(--danger)">✕</button>
         </div>
       </div>
       <button class="btn btn-secondary btn-sm" @click="form.items.push({ product_id: '', quantity: 1, price: '' })">+ Позиция</button>
-      <div class="sale-total" style="margin-top:8px">Итого: {{ saleTotal }} ₽</div>
+      <div class="sale-total" style="margin-top:8px">Итого: {{ saleTotal }} Br</div>
       <template #footer>
         <button class="btn btn-secondary" @click="showModal = false">Отмена</button>
         <button class="btn btn-primary" @click="save" :disabled="saving">{{ saving ? '...' : 'Создать' }}</button>

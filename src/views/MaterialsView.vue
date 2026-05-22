@@ -15,7 +15,7 @@
             <tr v-for="m in materials" :key="m.id">
               <td>{{ m.name }}</td>
               <td>{{ m.unit }}</td>
-              <td>{{ m.price_per_unit }} ₽</td>
+              <td>{{ m.price_per_unit }} Br</td>
               <td>
                 <span :class="m.stock_qty > 10 ? 'badge-success' : m.stock_qty > 0 ? 'badge-warning' : 'badge-danger'" class="badge">
                   {{ m.stock_qty }} {{ m.unit }}

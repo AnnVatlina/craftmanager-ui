@@ -21,11 +21,11 @@
       <div style="display:flex;gap:24px;flex-wrap:wrap">
         <div v-for="cat in catSummary" :key="cat.name" style="text-align:center">
           <div class="kpi-label">{{ cat.name }}</div>
-          <div style="font-weight:600">{{ cat.total.toFixed(2) }} ₽</div>
+          <div style="font-weight:600">{{ cat.total.toFixed(2) }} Br</div>
         </div>
         <div style="text-align:center">
           <div class="kpi-label">Итого</div>
-          <div style="font-weight:700;color:var(--danger)">{{ grandTotal.toFixed(2) }} ₽</div>
+          <div style="font-weight:700;color:var(--danger)">{{ grandTotal.toFixed(2) }} Br</div>
         </div>
       </div>
     </div>
@@ -40,7 +40,7 @@
             <tr v-for="e in expenses" :key="e.id">
               <td>{{ fmtDate(e.expense_date) }}</td>
               <td><span class="badge badge-neutral">{{ e.category }}</span></td>
-              <td><strong>{{ e.amount }} ₽</strong></td>
+              <td><strong>{{ e.amount }} Br</strong></td>
               <td style="color:var(--text-muted)">{{ e.description || '—' }}</td>
               <td>
                 <button class="btn-icon" @click="editExp(e)">✏️</button>

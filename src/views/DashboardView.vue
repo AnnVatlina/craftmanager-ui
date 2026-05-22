@@ -20,16 +20,16 @@
       <div class="cards-grid">
         <div class="card">
           <div class="kpi-label">Выручка</div>
-          <div class="kpi-value success">{{ fmt(summary.total_revenue) }} ₽</div>
+          <div class="kpi-value success">{{ fmt(summary.total_revenue) }} Br</div>
         </div>
         <div class="card">
           <div class="kpi-label">Расходы</div>
-          <div class="kpi-value danger">{{ fmt(summary.total_expenses) }} ₽</div>
+          <div class="kpi-value danger">{{ fmt(summary.total_expenses) }} Br</div>
         </div>
         <div class="card">
           <div class="kpi-label">Прибыль</div>
           <div class="kpi-value" :class="summary.profit >= 0 ? 'success' : 'danger'">
-            {{ fmt(summary.profit) }} ₽
+            {{ fmt(summary.profit) }} Br
           </div>
         </div>
       </div>
@@ -44,7 +44,7 @@
                 <tr v-for="p in topProducts" :key="p.product_id">
                   <td>{{ p.product_name || '—' }}</td>
                   <td>{{ p.quantity }}</td>
-                  <td>{{ fmt(p.revenue) }} ₽</td>
+                  <td>{{ fmt(p.revenue) }} Br</td>
                 </tr>
                 <tr v-if="!topProducts.length">
                   <td colspan="3" class="empty">Нет данных</td>

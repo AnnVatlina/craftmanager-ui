@@ -11,7 +11,7 @@
     <div v-if="loading" class="loading">Загрузка...</div>
     <template v-else-if="product">
       <div class="cards-grid" style="margin-bottom:24px">
-        <div class="card"><div class="kpi-label">Цена продажи</div><div class="kpi-value">{{ product.sale_price }} ₽</div></div>
+        <div class="card"><div class="kpi-label">Цена продажи</div><div class="kpi-value">{{ product.sale_price }} Br</div></div>
         <div class="card"><div class="kpi-label">Себестоимость</div><div class="kpi-value">{{ product.cost_price || '—' }} {{ product.cost_price ? '₽' : '' }}</div></div>
         <div class="card">
           <div class="kpi-label">Маржа</div>
@@ -33,8 +33,8 @@
                 <td>{{ m.material_name }}</td>
                 <td>{{ m.quantity }}</td>
                 <td>{{ m.material_unit }}</td>
-                <td>{{ m.material_price }} ₽</td>
-                <td>{{ (m.quantity * m.material_price).toFixed(2) }} ₽</td>
+                <td>{{ m.material_price }} Br</td>
+                <td>{{ (m.quantity * m.material_price).toFixed(2) }} Br</td>
                 <td><button class="btn-icon" @click="removeMaterial(m)">🗑</button></td>
               </tr>
               <tr v-if="!product.materials?.length">
@@ -54,7 +54,10 @@
           <label>Категория</label>
           <select v-model="editForm.category">
             <option value="">—</option>
-            <option>мягкие</option><option>деревянные</option><option>вязаные</option><option>прочее</option>
+            <option>Вязаные игрушки плюш</option>
+            <option>Вязаные игрушки акрил</option>
+            <option>Лотерейные игрушки</option>
+            <option>Брелоки</option>
           </select>
         </div>
         <div class="form-group"><label>Цена</label><input v-model="editForm.sale_price" type="number" step="0.01" /></div>
