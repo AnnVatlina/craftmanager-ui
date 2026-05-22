@@ -1,1 +1,0 @@
-import{a as t}from"./client-C5WIOF26.js";const s={list:()=>t.get("/api/v1/buyers"),get:e=>t.get(`/api/v1/buyers/${e}`),create:e=>t.post("/api/v1/buyers",e),update:(e,p)=>t.put(`/api/v1/buyers/${e}`,p),delete:e=>t.delete(`/api/v1/buyers/${e}`)};export{s as b};
