@@ -40,7 +40,10 @@ async function request(path, options = {}) {
 
   if (!res.ok && res.status !== 204) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err.detail || `Ошибка ${res.status}`)
+    const detail = Array.isArray(err.detail)
+      ? err.detail.map(e => e.msg || JSON.stringify(e)).join('; ')
+      : (err.detail || `Ошибка ${res.status}`)
+    throw new Error(detail)
   }
 
   if (res.status === 204) return null
