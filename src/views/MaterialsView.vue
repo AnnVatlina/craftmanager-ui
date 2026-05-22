@@ -15,7 +15,7 @@
             <tr v-for="m in materials" :key="m.id">
               <td>{{ m.name }}</td>
               <td>{{ m.unit }}</td>
-              <td>{{ m.price_per_unit }} Br</td>
+              <td>{{ m.price_per_unit }} {{ cur }}</td>
               <td>
                 <span :class="m.stock_qty > 10 ? 'badge-success' : m.stock_qty > 0 ? 'badge-warning' : 'badge-danger'" class="badge">
                   {{ m.stock_qty }} {{ m.unit }}
@@ -65,9 +65,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import BaseModal from '../components/BaseModal.vue'
 import { materialsApi } from '../api/materials.js'
+import { settingsStore } from '../stores/settings.js'
 
 const materials = ref([])
 const loading = ref(true)
@@ -79,6 +80,7 @@ const restocking = ref(null)
 const error = ref('')
 const form = reactive({ name: '', unit: 'г', price_per_unit: '', stock_qty: 0 })
 const restockForm = reactive({ qty: '', price_per_unit: '' })
+const cur = computed(() => settingsStore.currency)
 
 async function load() {
   loading.value = true

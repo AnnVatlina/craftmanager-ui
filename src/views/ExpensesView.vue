@@ -21,11 +21,11 @@
       <div style="display:flex;gap:24px;flex-wrap:wrap">
         <div v-for="cat in catSummary" :key="cat.name" style="text-align:center">
           <div class="kpi-label">{{ cat.name }}</div>
-          <div style="font-weight:600">{{ cat.total.toFixed(2) }} Br</div>
+          <div style="font-weight:600">{{ cat.total.toFixed(2) }} {{ cur }}</div>
         </div>
         <div style="text-align:center">
           <div class="kpi-label">Итого</div>
-          <div style="font-weight:700;color:var(--danger)">{{ grandTotal.toFixed(2) }} Br</div>
+          <div style="font-weight:700;color:var(--danger)">{{ grandTotal.toFixed(2) }} {{ cur }}</div>
         </div>
       </div>
     </div>
@@ -40,7 +40,7 @@
             <tr v-for="e in expenses" :key="e.id">
               <td>{{ fmtDate(e.expense_date) }}</td>
               <td><span class="badge badge-neutral">{{ e.category }}</span></td>
-              <td><strong>{{ e.amount }} Br</strong></td>
+              <td><strong>{{ e.amount }} {{ cur }}</strong></td>
               <td style="color:var(--text-muted)">{{ e.description || '—' }}</td>
               <td>
                 <button class="btn-icon" @click="editExp(e)">✏️</button>
@@ -77,6 +77,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import BaseModal from '../components/BaseModal.vue'
 import { expensesApi } from '../api/expenses.js'
+import { settingsStore } from '../stores/settings.js'
 
 const expenses = ref([])
 const loading = ref(true)
@@ -89,6 +90,7 @@ const dateFrom = ref('')
 const dateTo = ref('')
 const form = reactive({ category: 'материалы', amount: '', expense_date: new Date().toISOString().slice(0, 10), description: '' })
 
+const cur = computed(() => settingsStore.currency)
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('ru-RU') : '—'
 const grandTotal = computed(() => expenses.value.reduce((s, e) => s + parseFloat(e.amount || 0), 0))
 const catSummary = computed(() => {

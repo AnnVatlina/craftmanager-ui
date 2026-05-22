@@ -30,9 +30,12 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { authStore } from '../stores/auth.js'
+import { settingsStore } from '../stores/settings.js'
 
 const sidebarOpen = ref(false)
 const logout = () => authStore.logout()
+
+onMounted(() => settingsStore.load())
 </script>

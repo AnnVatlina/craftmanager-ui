@@ -10,10 +10,7 @@
         <label>Категория</label>
         <select v-model="filterCategory" @change="load">
           <option value="">Все</option>
-          <option>Вязаные игрушки плюш</option>
-          <option>Вязаные игрушки акрил</option>
-          <option>Лотерейные игрушки</option>
-          <option>Брелоки</option>
+          <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
         </select>
       </div>
       <div class="form-group">
@@ -38,8 +35,8 @@
             <tr v-for="p in products" :key="p.id" class="clickable" @click="$router.push(`/products/${p.id}`)">
               <td>{{ p.name }}</td>
               <td><span class="badge badge-neutral">{{ p.category || '—' }}</span></td>
-              <td>{{ p.sale_price }} Br</td>
-              <td>{{ p.cost_price ? p.cost_price + ' Br' : '—' }}</td>
+              <td>{{ p.sale_price }} {{ cur }}</td>
+              <td>{{ p.cost_price ? p.cost_price + ' ' + cur : '—' }}</td>
               <td>
                 <span v-if="p.cost_price" :class="margin(p) >= 0 ? 'badge-success' : 'badge-danger'" class="badge">
                   {{ margin(p) }}%
@@ -64,10 +61,7 @@
           <label>Категория</label>
           <select v-model="form.category">
             <option value="">—</option>
-            <option>Вязаные игрушки плюш</option>
-            <option>Вязаные игрушки акрил</option>
-            <option>Лотерейные игрушки</option>
-            <option>Брелоки</option>
+            <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
           </select>
         </div>
         <div class="form-group"><label>Цена продажи *</label><input v-model="form.sale_price" type="number" step="0.01" /></div>
@@ -83,9 +77,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import BaseModal from '../components/BaseModal.vue'
 import { productsApi } from '../api/products.js'
+import { settingsStore } from '../stores/settings.js'
 
 const products = ref([])
 const loading = ref(true)
@@ -97,6 +92,8 @@ const filterCategory = ref('')
 const filterInStock = ref('')
 const form = reactive({ name: '', category: '', sale_price: '', stock_qty: 0, description: '' })
 
+const cur = computed(() => settingsStore.currency)
+const categories = computed(() => settingsStore.categories)
 const margin = (p) => p.cost_price ? Math.round((p.sale_price - p.cost_price) / p.sale_price * 100) : 0
 
 async function load() {
@@ -128,11 +125,8 @@ async function save() {
   if (!form.name || !form.sale_price) { error.value = 'Заполните обязательные поля'; return }
   saving.value = true
   try {
-    if (editing.value) {
-      await productsApi.update(editing.value, form)
-    } else {
-      await productsApi.create(form)
-    }
+    if (editing.value) await productsApi.update(editing.value, form)
+    else await productsApi.create(form)
     showModal.value = false
     await load()
   } catch (e) { error.value = e.message }

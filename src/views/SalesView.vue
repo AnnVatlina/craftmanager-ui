@@ -27,7 +27,7 @@
             <tr v-for="s in sales" :key="s.id">
               <td>{{ fmtDate(s.sale_date) }}</td>
               <td>{{ buyerName(s.buyer_id) || '—' }}</td>
-              <td><strong>{{ s.total_amount }} Br</strong></td>
+              <td><strong>{{ s.total_amount }} {{ cur }}</strong></td>
               <td style="color:var(--text-muted)">{{ s.notes || '—' }}</td>
               <td><button class="btn-icon" @click="deleteSale(s.id)">🗑</button></td>
             </tr>
@@ -58,12 +58,12 @@
             <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
           <input v-model.number="item.quantity" type="number" min="1" placeholder="Кол-во" />
-          <input v-model="item.price" type="number" step="0.01" placeholder="Цена Br" />
+          <input v-model="item.price" type="number" step="0.01" placeholder="Цена {{ cur }}" />
           <button class="btn-icon" @click="form.items.splice(i, 1)" style="color:var(--danger)">✕</button>
         </div>
       </div>
       <button class="btn btn-secondary btn-sm" @click="form.items.push({ product_id: '', quantity: 1, price: '' })">+ Позиция</button>
-      <div class="sale-total" style="margin-top:8px">Итого: {{ saleTotal }} Br</div>
+      <div class="sale-total" style="margin-top:8px">Итого: {{ saleTotal }} {{ cur }}</div>
       <template #footer>
         <button class="btn btn-secondary" @click="showModal = false">Отмена</button>
         <button class="btn btn-primary" @click="save" :disabled="saving">{{ saving ? '...' : 'Создать' }}</button>
@@ -78,6 +78,7 @@ import BaseModal from '../components/BaseModal.vue'
 import { salesApi } from '../api/sales.js'
 import { buyersApi } from '../api/buyers.js'
 import { productsApi } from '../api/products.js'
+import { settingsStore } from '../stores/settings.js'
 
 const sales = ref([])
 const buyers = ref([])
@@ -93,6 +94,7 @@ const form = reactive({ sale_date: new Date().toISOString().slice(0, 10), buyer_
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('ru-RU') : '—'
 const buyerName = (id) => buyers.value.find(b => b.id === id)?.name
+const cur = computed(() => settingsStore.currency)
 const saleTotal = computed(() => form.items.reduce((s, i) => s + (i.quantity * (i.price || 0)), 0).toFixed(2))
 
 function fillPrice(item) {

@@ -20,16 +20,16 @@
       <div class="cards-grid">
         <div class="card">
           <div class="kpi-label">Выручка</div>
-          <div class="kpi-value success">{{ fmt(summary.total_revenue) }} Br</div>
+          <div class="kpi-value success">{{ fmt(summary.total_revenue) }} {{ cur }}</div>
         </div>
         <div class="card">
           <div class="kpi-label">Расходы</div>
-          <div class="kpi-value danger">{{ fmt(summary.total_expenses) }} Br</div>
+          <div class="kpi-value danger">{{ fmt(summary.total_expenses) }} {{ cur }}</div>
         </div>
         <div class="card">
           <div class="kpi-label">Прибыль</div>
           <div class="kpi-value" :class="summary.profit >= 0 ? 'success' : 'danger'">
-            {{ fmt(summary.profit) }} Br
+            {{ fmt(summary.profit) }} {{ cur }}
           </div>
         </div>
       </div>
@@ -44,7 +44,7 @@
                 <tr v-for="p in topProducts" :key="p.product_id">
                   <td>{{ p.product_name || '—' }}</td>
                   <td>{{ p.quantity }}</td>
-                  <td>{{ fmt(p.revenue) }} Br</td>
+                  <td>{{ fmt(p.revenue) }} {{ cur }}</td>
                 </tr>
                 <tr v-if="!topProducts.length">
                   <td colspan="3" class="empty">Нет данных</td>
@@ -68,8 +68,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { dashboardApi } from '../api/dashboard.js'
+import { settingsStore } from '../stores/settings.js'
 
 const loading = ref(true)
 const dateFrom = ref('')
@@ -78,6 +79,7 @@ const summary = ref({ total_revenue: 0, total_expenses: 0, profit: 0 })
 const topProducts = ref([])
 const lowStock = ref([])
 
+const cur = computed(() => settingsStore.currency)
 const fmt = (v) => Number(v || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 async function load() {
@@ -89,7 +91,7 @@ async function load() {
     const [s, t, l] = await Promise.all([
       dashboardApi.summary(params),
       dashboardApi.topProducts(params),
-      dashboardApi.lowStock(),
+      dashboardApi.lowStock(settingsStore.low_stock_threshold),
     ])
     summary.value = s.data
     topProducts.value = t.data
