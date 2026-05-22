@@ -1,0 +1,1 @@
+import{a as t}from"./client-C5WIOF26.js";const s={list:()=>t.get("/api/v1/materials"),get:a=>t.get(`/api/v1/materials/${a}`),create:a=>t.post("/api/v1/materials",a),update:(a,e)=>t.put(`/api/v1/materials/${a}`,e),delete:a=>t.delete(`/api/v1/materials/${a}`),restock:(a,e)=>t.post(`/api/v1/materials/${a}/restock`,e)};export{s as m};
