@@ -9,10 +9,10 @@
       <div class="form-group"><label>С</label><input v-model="dateFrom" type="date" @change="load" /></div>
       <div class="form-group"><label>По</label><input v-model="dateTo" type="date" @change="load" /></div>
       <div class="form-group">
-        <label>Покупатель</label>
-        <select v-model="buyerFilter" @change="load">
+        <label>Канал</label>
+        <select v-model="channelFilter" @change="load">
           <option value="">Все</option>
-          <option v-for="b in buyers" :key="b.id" :value="b.id">{{ b.name }}</option>
+          <option v-for="c in channels" :key="c.id" :value="c.id">{{ c.name }}</option>
         </select>
       </div>
     </div>
@@ -22,11 +22,11 @@
       <div v-else-if="!sales.length" class="empty"><div class="icon">💰</div>Продаж пока нет</div>
       <div v-else class="table-wrap">
         <table>
-          <thead><tr><th>Дата</th><th>Покупатель</th><th>Сумма</th><th>Заметки</th><th></th></tr></thead>
+          <thead><tr><th>Дата</th><th>Канал</th><th>Сумма</th><th>Заметки</th><th></th></tr></thead>
           <tbody>
             <tr v-for="s in sales" :key="s.id">
               <td>{{ fmtDate(s.sale_date) }}</td>
-              <td>{{ buyerName(s.buyer_id) || '—' }}</td>
+              <td>{{ channelName(s.channel_id) || '—' }}</td>
               <td><strong>{{ s.total_amount }} {{ cur }}</strong></td>
               <td style="color:var(--text-muted)">{{ s.notes || '—' }}</td>
               <td><button class="btn-icon" @click="deleteSale(s.id)">🗑</button></td>
@@ -41,10 +41,10 @@
       <div class="form-row">
         <div class="form-group"><label>Дата *</label><input v-model="form.sale_date" type="date" /></div>
         <div class="form-group">
-          <label>Покупатель</label>
-          <select v-model="form.buyer_id">
+          <label>Канал продаж</label>
+          <select v-model="form.channel_id">
             <option value="">—</option>
-            <option v-for="b in buyers" :key="b.id" :value="b.id">{{ b.name }}</option>
+            <option v-for="c in channels" :key="c.id" :value="c.id">{{ c.name }}</option>
           </select>
         </div>
       </div>
@@ -76,12 +76,12 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import BaseModal from '../components/BaseModal.vue'
 import { salesApi } from '../api/sales.js'
-import { buyersApi } from '../api/buyers.js'
+import { channelsApi } from '../api/channels.js'
 import { productsApi } from '../api/products.js'
 import { settingsStore } from '../stores/settings.js'
 
 const sales = ref([])
-const buyers = ref([])
+const channels = ref([])
 const products = ref([])
 const loading = ref(true)
 const showModal = ref(false)
@@ -89,11 +89,11 @@ const saving = ref(false)
 const error = ref('')
 const dateFrom = ref('')
 const dateTo = ref('')
-const buyerFilter = ref('')
-const form = reactive({ sale_date: new Date().toISOString().slice(0, 10), buyer_id: '', notes: '', items: [] })
+const channelFilter = ref('')
+const form = reactive({ sale_date: new Date().toISOString().slice(0, 10), channel_id: '', notes: '', items: [] })
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('ru-RU') : '—'
-const buyerName = (id) => buyers.value.find(b => b.id === id)?.name
+const channelName = (id) => channels.value.find(c => c.id === id)?.name
 const cur = computed(() => settingsStore.currency)
 const saleTotal = computed(() => form.items.reduce((s, i) => s + (i.quantity * (i.price || 0)), 0).toFixed(2))
 
@@ -109,15 +109,15 @@ async function load() {
     if (dateFrom.value) params.date_from = dateFrom.value
     if (dateTo.value) params.date_to = dateTo.value
     if (buyerFilter.value) params.buyer_id = buyerFilter.value
-    const [s, b, p] = await Promise.all([salesApi.list(params), buyersApi.list(), productsApi.list()])
+    const [s, ch, p] = await Promise.all([salesApi.list(params), channelsApi.list(), productsApi.list()])
     sales.value = s.data
-    buyers.value = b.data
+    channels.value = ch.data
     products.value = p.data
   } finally { loading.value = false }
 }
 
 function openCreate() {
-  Object.assign(form, { sale_date: new Date().toISOString().slice(0, 10), buyer_id: '', notes: '', items: [{ product_id: '', quantity: 1, price: '' }] })
+  Object.assign(form, { sale_date: new Date().toISOString().slice(0, 10), channel_id: '', notes: '', items: [{ product_id: '', quantity: 1, price: '' }] })
   error.value = ''
   showModal.value = true
 }
@@ -127,7 +127,7 @@ async function save() {
   if (form.items.some(i => !i.price)) { error.value = 'Укажите цену для всех позиций'; return }
   saving.value = true
   try {
-    await salesApi.create({ ...form, buyer_id: form.buyer_id || null, items: form.items.map(i => ({ ...i, product_id: i.product_id || null })) })
+    await salesApi.create({ ...form, channel_id: form.channel_id || null, items: form.items.map(i => ({ ...i, product_id: i.product_id || null })) })
     showModal.value = false
     await load()
   } catch (e) { error.value = e.message }

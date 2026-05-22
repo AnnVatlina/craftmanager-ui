@@ -11,7 +11,7 @@ const routes = [
       { path: 'products/:id', component: () => import('../views/ProductDetailView.vue') },
       { path: 'materials', component: () => import('../views/MaterialsView.vue') },
       { path: 'sales', component: () => import('../views/SalesView.vue') },
-      { path: 'buyers', component: () => import('../views/BuyersView.vue') },
+      { path: 'channels', component: () => import('../views/ChannelsView.vue') },
       { path: 'expenses', component: () => import('../views/ExpensesView.vue') },
       { path: 'settings', component: () => import('../views/SettingsView.vue') },
     ],
