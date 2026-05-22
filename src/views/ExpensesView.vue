@@ -10,7 +10,7 @@
         <label>Категория</label>
         <select v-model="filterCat" @change="load">
           <option value="">Все</option>
-          <option>материалы</option><option>инструменты</option><option>реклама</option><option>прочее</option>
+          <option v-for="c in expCats" :key="c" :value="c">{{ c }}</option>
         </select>
       </div>
       <div class="form-group"><label>С</label><input v-model="dateFrom" type="date" @change="load" /></div>
@@ -58,7 +58,7 @@
         <div class="form-group">
           <label>Категория *</label>
           <select v-model="form.category">
-            <option>материалы</option><option>инструменты</option><option>реклама</option><option>прочее</option>
+            <option v-for="c in expCats" :key="c" :value="c">{{ c }}</option>
           </select>
         </div>
         <div class="form-group"><label>Сумма *</label><input v-model="form.amount" type="number" step="0.01" /></div>
@@ -88,9 +88,10 @@ const error = ref('')
 const filterCat = ref('')
 const dateFrom = ref('')
 const dateTo = ref('')
-const form = reactive({ category: 'материалы', amount: '', expense_date: new Date().toISOString().slice(0, 10), description: '' })
+const form = reactive({ category: '', amount: '', expense_date: new Date().toISOString().slice(0, 10), description: '' })
 
 const cur = computed(() => settingsStore.currency)
+const expCats = computed(() => settingsStore.expense_categories)
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('ru-RU') : '—'
 const grandTotal = computed(() => expenses.value.reduce((s, e) => s + parseFloat(e.amount || 0), 0))
 const catSummary = computed(() => {
@@ -113,7 +114,7 @@ async function load() {
 
 function openCreate() {
   editing.value = null
-  Object.assign(form, { category: 'материалы', amount: '', expense_date: new Date().toISOString().slice(0, 10), description: '' })
+  Object.assign(form, { category: expCats.value[0] || '', amount: '', expense_date: new Date().toISOString().slice(0, 10), description: '' })
   error.value = ''
   showModal.value = true
 }

@@ -40,7 +40,7 @@
         <div class="form-group">
           <label>Единица *</label>
           <select v-model="form.unit">
-            <option>г</option><option>кг</option><option>м</option><option>мл</option><option>шт</option>
+            <option v-for="u in units" :key="u" :value="u">{{ u }}</option>
           </select>
         </div>
         <div class="form-group"><label>Цена/ед. *</label><input v-model="form.price_per_unit" type="number" step="0.0001" /></div>
@@ -78,9 +78,10 @@ const saving = ref(false)
 const editing = ref(null)
 const restocking = ref(null)
 const error = ref('')
-const form = reactive({ name: '', unit: 'г', price_per_unit: '', stock_qty: 0 })
+const form = reactive({ name: '', unit: '', price_per_unit: '', stock_qty: 0 })
 const restockForm = reactive({ qty: '', price_per_unit: '' })
 const cur = computed(() => settingsStore.currency)
+const units = computed(() => settingsStore.material_units)
 
 async function load() {
   loading.value = true

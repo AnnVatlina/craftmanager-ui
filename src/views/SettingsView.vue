@@ -25,7 +25,23 @@
         <input v-model="form.categories[i]" style="flex:1" />
         <button class="btn-icon" @click="form.categories.splice(i,1)" style="color:var(--danger)">✕</button>
       </div>
-      <button class="btn btn-secondary btn-sm" @click="form.categories.push('')" style="margin-bottom:20px">+ Добавить категорию</button>
+      <button class="btn btn-secondary btn-sm" @click="form.categories.push('')" style="margin-bottom:20px">+ Добавить</button>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0" />
+      <div style="font-weight:600;margin-bottom:12px">Категории расходов</div>
+      <div v-for="(cat, i) in form.expense_categories" :key="i" style="display:flex;gap:8px;margin-bottom:8px">
+        <input v-model="form.expense_categories[i]" style="flex:1" />
+        <button class="btn-icon" @click="form.expense_categories.splice(i,1)" style="color:var(--danger)">✕</button>
+      </div>
+      <button class="btn btn-secondary btn-sm" @click="form.expense_categories.push('')" style="margin-bottom:20px">+ Добавить</button>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0" />
+      <div style="font-weight:600;margin-bottom:12px">Единицы измерения материалов</div>
+      <div v-for="(u, i) in form.material_units" :key="i" style="display:flex;gap:8px;margin-bottom:8px">
+        <input v-model="form.material_units[i]" style="flex:1" />
+        <button class="btn-icon" @click="form.material_units.splice(i,1)" style="color:var(--danger)">✕</button>
+      </div>
+      <button class="btn btn-secondary btn-sm" @click="form.material_units.push('')" style="margin-bottom:20px">+ Добавить</button>
 
       <hr style="border:none;border-top:1px solid var(--border);margin:20px 0" />
 
@@ -46,12 +62,14 @@ import { authStore } from '../stores/auth.js'
 const saving = ref(false)
 const saved = ref(false)
 const error = ref('')
-const form = reactive({ currency: 'Br', categories: [], low_stock_threshold: 5 })
+const form = reactive({ currency: 'Br', categories: [], expense_categories: [], material_units: [], low_stock_threshold: 5 })
 
 async function load() {
   await settingsStore.load()
   form.currency = settingsStore.currency
   form.categories = [...settingsStore.categories]
+  form.expense_categories = [...settingsStore.expense_categories]
+  form.material_units = [...settingsStore.material_units]
   form.low_stock_threshold = settingsStore.low_stock_threshold
 }
 
@@ -63,6 +81,8 @@ async function save() {
     await settingsApi.update({
       currency: form.currency,
       categories: form.categories.filter(c => c.trim()),
+      expense_categories: form.expense_categories.filter(c => c.trim()),
+      material_units: form.material_units.filter(c => c.trim()),
       low_stock_threshold: form.low_stock_threshold,
     })
     await settingsStore.load()
