@@ -108,7 +108,7 @@ async function load() {
     const params = {}
     if (dateFrom.value) params.date_from = dateFrom.value
     if (dateTo.value) params.date_to = dateTo.value
-    if (buyerFilter.value) params.buyer_id = buyerFilter.value
+    if (channelFilter.value) params.channel_id = channelFilter.value
     const [s, ch, p] = await Promise.all([salesApi.list(params), channelsApi.list(), productsApi.list()])
     sales.value = s.data
     channels.value = ch.data
