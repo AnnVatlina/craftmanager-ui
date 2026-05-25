@@ -8,19 +8,24 @@
     <div class="filters">
       <div class="form-group">
         <label>Категория</label>
-        <select v-model="filterCategory" @change="load">
+        <select v-model="filterCategory" @change="changePage(1)">
           <option value="">Все</option>
           <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
         </select>
       </div>
       <div class="form-group">
         <label>Наличие</label>
-        <select v-model="filterInStock" @change="load">
+        <select v-model="filterInStock" @change="changePage(1)">
           <option value="">Все</option>
           <option value="true">В наличии</option>
           <option value="false">Нет в наличии</option>
         </select>
       </div>
+    </div>
+
+    <div v-if="!loading && meta.total > 0" class="summary-bar">
+      <span>Всего: <strong>{{ meta.total }}</strong> изд.</span>
+      <span>Стоимость склада: <strong>{{ fmt(meta.total_stock_value) }} {{ cur }}</strong></span>
     </div>
 
     <div class="card">
@@ -50,6 +55,12 @@
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div v-if="meta.pages > 1" class="pagination">
+        <button class="btn btn-secondary btn-sm" :disabled="meta.page <= 1" @click="changePage(meta.page - 1)">← Назад</button>
+        <span class="pagination-info">{{ meta.page }} / {{ meta.pages }}</span>
+        <button class="btn btn-secondary btn-sm" :disabled="meta.page >= meta.pages" @click="changePage(meta.page + 1)">Вперёд →</button>
       </div>
     </div>
 
@@ -90,21 +101,29 @@ const editing = ref(null)
 const error = ref('')
 const filterCategory = ref('')
 const filterInStock = ref('')
+const meta = ref({ total: 0, page: 1, pages: 1, per_page: 20, total_stock_value: 0 })
 const form = reactive({ name: '', category: '', sale_price: '', stock_qty: 0, description: '' })
 
 const cur = computed(() => settingsStore.currency)
 const categories = computed(() => settingsStore.categories)
 const margin = (p) => p.cost_price ? Math.round((p.sale_price - p.cost_price) / p.sale_price * 100) : 0
+const fmt = (v) => Number(v || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 async function load() {
   loading.value = true
   try {
-    const params = {}
+    const params = { page: meta.value.page, per_page: meta.value.per_page }
     if (filterCategory.value) params.category = filterCategory.value
     if (filterInStock.value !== '') params.in_stock = filterInStock.value
     const res = await productsApi.list(params)
     products.value = res.data
+    meta.value = { ...meta.value, ...res.meta }
   } finally { loading.value = false }
+}
+
+function changePage(page) {
+  meta.value.page = page
+  load()
 }
 
 function openCreate() {

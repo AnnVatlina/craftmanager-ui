@@ -141,6 +141,10 @@ textarea { resize: vertical; min-height: 80px; }
 .item-row:last-child { border-bottom: none; }
 .item-row input, .item-row select { padding: 5px 8px; font-size: 13px; }
 .sale-total { text-align: right; font-weight: 600; color: var(--primary); margin-bottom: 4px; }
+.summary-bar { display: flex; gap: 24px; padding: 10px 16px; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 16px; font-size: 14px; color: var(--text-muted); flex-wrap: wrap; }
+.summary-bar strong { color: var(--text); }
+.pagination { display: flex; align-items: center; justify-content: center; gap: 12px; padding-top: 16px; border-top: 1px solid var(--border); margin-top: 8px; }
+.pagination-info { font-size: 14px; color: var(--text-muted); }
 
 /* Responsive */
 @media (max-width: 768px) {
