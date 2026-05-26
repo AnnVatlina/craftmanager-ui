@@ -54,7 +54,10 @@
 
     <!-- Restock -->
     <BaseModal v-if="showRestock" :title="`Пополнить: ${restocking?.name}`" @close="showRestock = false">
-      <div class="form-group"><label>Количество</label><input v-model="restockForm.qty" type="number" step="0.001" /></div>
+      <div class="form-row">
+        <div class="form-group"><label>Количество *</label><input v-model="restockForm.qty" type="number" step="0.001" /></div>
+        <div class="form-group"><label>Дата покупки</label><input v-model="restockForm.purchased_at" type="date" /></div>
+      </div>
       <div class="form-group"><label>Новая цена/ед. (необязательно)</label><input v-model="restockForm.price_per_unit" type="number" step="0.0001" /></div>
       <template #footer>
         <button class="btn btn-secondary" @click="showRestock = false">Отмена</button>
@@ -79,7 +82,7 @@ const editing = ref(null)
 const restocking = ref(null)
 const error = ref('')
 const form = reactive({ name: '', unit: '', price_per_unit: '', stock_qty: 0 })
-const restockForm = reactive({ qty: '', price_per_unit: '' })
+const restockForm = reactive({ qty: '', price_per_unit: '', purchased_at: '' })
 const cur = computed(() => settingsStore.currency)
 const units = computed(() => settingsStore.material_units)
 
@@ -107,6 +110,7 @@ function openRestock(m) {
   restocking.value = m
   restockForm.qty = ''
   restockForm.price_per_unit = ''
+  restockForm.purchased_at = new Date().toISOString().slice(0, 10)
   showRestock.value = true
 }
 
@@ -125,6 +129,7 @@ async function save() {
 async function restock() {
   const data = { qty: restockForm.qty }
   if (restockForm.price_per_unit) data.price_per_unit = restockForm.price_per_unit
+  if (restockForm.purchased_at) data.purchased_at = restockForm.purchased_at
   await materialsApi.restock(restocking.value.id, data)
   showRestock.value = false
   await load()

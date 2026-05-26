@@ -25,6 +25,10 @@
         <div class="card">
           <div class="kpi-label">Расходы</div>
           <div class="kpi-value danger">{{ fmt(summary.total_expenses) }} {{ cur }}</div>
+          <div class="kpi-breakdown">
+            <span>Прочие: {{ fmt(summary.manual_expenses) }} {{ cur }}</span>
+            <span>Материалы: {{ fmt(summary.material_expenses) }} {{ cur }}</span>
+          </div>
         </div>
         <div class="card">
           <div class="kpi-label">Прибыль</div>
@@ -75,7 +79,7 @@ import { settingsStore } from '../stores/settings.js'
 const loading = ref(true)
 const dateFrom = ref('')
 const dateTo = ref('')
-const summary = ref({ total_revenue: 0, total_expenses: 0, profit: 0 })
+const summary = ref({ total_revenue: 0, total_expenses: 0, manual_expenses: 0, material_expenses: 0, profit: 0 })
 const topProducts = ref([])
 const lowStock = ref([])
 
