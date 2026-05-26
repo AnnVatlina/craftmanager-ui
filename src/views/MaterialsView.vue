@@ -15,10 +15,10 @@
             <tr v-for="m in materials" :key="m.id">
               <td>{{ m.name }}</td>
               <td>{{ m.unit }}</td>
-              <td>{{ m.price_per_unit }} {{ cur }}</td>
+              <td>{{ fmt(m.price_per_unit) }} {{ cur }}</td>
               <td>
                 <span :class="m.stock_qty > 10 ? 'badge-success' : m.stock_qty > 0 ? 'badge-warning' : 'badge-danger'" class="badge">
-                  {{ m.stock_qty }} {{ m.unit }}
+                  {{ fmt(m.stock_qty) }} {{ m.unit }}
                 </span>
               </td>
               <td>
@@ -85,6 +85,7 @@ const form = reactive({ name: '', unit: '', price_per_unit: '', stock_qty: 0 })
 const restockForm = reactive({ qty: '', price_per_unit: '', purchased_at: '' })
 const cur = computed(() => settingsStore.currency)
 const units = computed(() => settingsStore.material_units)
+const fmt = (v) => Number(v || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 async function load() {
   loading.value = true
