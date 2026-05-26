@@ -5,9 +5,10 @@
       <button v-if="prep" class="btn btn-secondary" @click="printList">🖨 Распечатать</button>
     </div>
 
-    <div class="form-group" style="max-width:360px;margin-bottom:24px">
+    <!-- Channel selector -->
+    <div class="form-group" style="max-width:360px;margin-bottom:20px">
       <label>Ярмарка</label>
-      <select v-model="selectedChannelId" @change="loadPrep">
+      <select v-model="selectedChannelId" @change="onChannelChange">
         <option value="">— Выберите ярмарку —</option>
         <option v-for="c in channels" :key="c.id" :value="c.id">
           {{ c.name }}{{ c.event_date ? ' · ' + fmtDate(c.event_date) : '' }}{{ c.location ? ' · ' + c.location : '' }}
@@ -16,6 +17,26 @@
     </div>
 
     <template v-if="selectedChannelId">
+      <!-- Filters -->
+      <div class="filters" style="margin-bottom:16px">
+        <div class="form-group">
+          <label>Категория</label>
+          <select v-model="filterCategory" @change="reload">
+            <option value="">Все</option>
+            <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Сортировка</label>
+          <select v-model="sortBy" @change="reload">
+            <option value="name">По названию</option>
+            <option value="category">По категории</option>
+            <option value="price_asc">По цене ↑</option>
+            <option value="price_desc">По цене ↓</option>
+          </select>
+        </div>
+      </div>
+
       <div v-if="loading" class="loading">Загрузка...</div>
       <template v-else-if="prep">
 
@@ -35,6 +56,8 @@
               <thead>
                 <tr>
                   <th>Изделие</th>
+                  <th>Категория</th>
+                  <th style="text-align:right">Цена</th>
                   <th style="text-align:center">Взять</th>
                   <th style="text-align:center">На складе</th>
                   <th style="text-align:center">Довязать</th>
@@ -44,6 +67,11 @@
               <tbody>
                 <tr v-for="item in prep.items" :key="item.id">
                   <td>{{ item.product_name }}</td>
+                  <td>
+                    <span v-if="item.category" class="badge badge-neutral">{{ item.category }}</span>
+                    <span v-else style="color:var(--text-muted)">—</span>
+                  </td>
+                  <td style="text-align:right">{{ fmt(item.sale_price) }} {{ cur }}</td>
                   <td style="text-align:center">
                     <input
                       class="qty-input"
@@ -67,13 +95,16 @@
                 </tr>
 
                 <!-- Add row -->
-                <tr>
-                  <td>
+                <tr style="background:var(--surface-hover, #f8fafc)">
+                  <td colspan="2">
                     <select v-model="newProductId" style="width:100%">
                       <option value="">— Добавить изделие —</option>
-                      <option v-for="p in availableProducts" :key="p.id" :value="p.id">{{ p.name }}</option>
+                      <option v-for="p in availableProducts" :key="p.id" :value="p.id">
+                        {{ p.name }}{{ p.category ? ' · ' + p.category : '' }}
+                      </option>
                     </select>
                   </td>
+                  <td></td>
                   <td style="text-align:center">
                     <input class="qty-input" type="number" min="1" v-model.number="newQty" />
                   </td>
@@ -104,6 +135,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { fairPrepApi } from '../api/fairPrep.js'
 import { productsApi } from '../api/products.js'
+import { settingsStore } from '../stores/settings.js'
 
 const channels = ref([])
 const selectedChannelId = ref('')
@@ -113,32 +145,52 @@ const adding = ref(false)
 const newProductId = ref('')
 const newQty = ref(1)
 const allProducts = ref([])
+const filterCategory = ref('')
+const sortBy = ref('name')
 
+const cur = computed(() => settingsStore.currency)
+const categories = computed(() => settingsStore.categories)
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('ru-RU') : ''
+const fmt = (v) => Number(v || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+const activeFilters = computed(() => {
+  const f = { sort_by: sortBy.value }
+  if (filterCategory.value) f.category = filterCategory.value
+  return f
+})
 
 const availableProducts = computed(() => {
   if (!prep.value) return allProducts.value
   const usedIds = new Set(prep.value.items.map(i => i.product_id))
+  // show all products in the add-row regardless of active category filter
   return allProducts.value.filter(p => !usedIds.has(p.id))
 })
 
-async function loadPrep() {
-  if (!selectedChannelId.value) { prep.value = null; return }
+async function reload() {
+  if (!selectedChannelId.value) return
   loading.value = true
   try {
-    const res = await fairPrepApi.getPrep(selectedChannelId.value)
+    const res = await fairPrepApi.getPrep(selectedChannelId.value, activeFilters.value)
     prep.value = res.data
   } finally { loading.value = false }
+}
+
+function onChannelChange() {
+  filterCategory.value = ''
+  sortBy.value = 'name'
+  prep.value = null
+  reload()
 }
 
 async function addItem() {
   if (!newProductId.value) return
   adding.value = true
   try {
-    const res = await fairPrepApi.addItem(selectedChannelId.value, {
-      product_id: newProductId.value,
-      planned_qty: newQty.value || 1,
-    })
+    const res = await fairPrepApi.addItem(
+      selectedChannelId.value,
+      { product_id: newProductId.value, planned_qty: newQty.value || 1 },
+      activeFilters.value,
+    )
     prep.value = res.data
     newProductId.value = ''
     newQty.value = 1
@@ -148,12 +200,14 @@ async function addItem() {
 async function updateQty(item, val) {
   const qty = parseInt(val)
   if (!qty || qty < 1) return
-  const res = await fairPrepApi.updateItem(selectedChannelId.value, item.id, { planned_qty: qty })
+  const res = await fairPrepApi.updateItem(
+    selectedChannelId.value, item.id, { planned_qty: qty }, activeFilters.value,
+  )
   prep.value = res.data
 }
 
 async function removeItem(itemId) {
-  const res = await fairPrepApi.removeItem(selectedChannelId.value, itemId)
+  const res = await fairPrepApi.removeItem(selectedChannelId.value, itemId, activeFilters.value)
   prep.value = res.data
 }
 
@@ -163,9 +217,13 @@ function printList() {
     ? `${channel.name}${channel.event_date ? ' · ' + fmtDate(channel.event_date) : ''}${channel.location ? ' · ' + channel.location : ''}`
     : 'Список изделий'
 
+  const filterNote = filterCategory.value ? ` (категория: ${filterCategory.value})` : ''
+
   const rows = prep.value.items.map(item => `
     <tr>
       <td>${item.product_name}</td>
+      <td>${item.category || '—'}</td>
+      <td style="text-align:right">${fmt(item.sale_price)}</td>
       <td style="text-align:center">${item.planned_qty}</td>
       <td style="text-align:center">${item.stock_qty}</td>
       <td style="text-align:center">${item.need_to_make > 0 ? '<strong style="color:#e11d48">' + item.need_to_make + '</strong>' : '—'}</td>
@@ -181,13 +239,15 @@ function printList() {
       table { width: 100%; border-collapse: collapse; }
       th, td { border: 1px solid #ddd; padding: 8px 12px; }
       th { background: #f5f5f5; text-align: left; }
+      td:nth-child(3) { text-align: right; }
+      td:nth-child(4), td:nth-child(5), td:nth-child(6) { text-align: center; }
       .summary { margin-top: 16px; font-size: 13px; color: #555; }
     </style>
   </head><body>
     <h2>🎪 ${title}</h2>
-    <p class="meta">Подготовлено: ${new Date().toLocaleDateString('ru-RU')}</p>
+    <p class="meta">Подготовлено: ${new Date().toLocaleDateString('ru-RU')}${filterNote}</p>
     <table>
-      <thead><tr><th>Изделие</th><th>Взять</th><th>На складе</th><th>Довязать</th></tr></thead>
+      <thead><tr><th>Изделие</th><th>Категория</th><th>Цена</th><th>Взять</th><th>На складе</th><th>Довязать</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <p class="summary">
