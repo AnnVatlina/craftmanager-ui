@@ -145,6 +145,7 @@ textarea { resize: vertical; min-height: 80px; }
 .summary-bar strong { color: var(--text); }
 .pagination { display: flex; align-items: center; justify-content: center; gap: 12px; padding-top: 16px; border-top: 1px solid var(--border); margin-top: 8px; }
 .pagination-info { font-size: 14px; color: var(--text-muted); }
+.qty-input { width: 64px; padding: 4px 6px; text-align: center; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
 
 /* Responsive */
 @media (max-width: 768px) {

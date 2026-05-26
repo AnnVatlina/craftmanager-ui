@@ -10,6 +10,7 @@
         <router-link to="/materials"><span class="icon">🧵</span> Материалы</router-link>
         <router-link to="/sales"><span class="icon">💰</span> Продажи</router-link>
         <router-link to="/channels"><span class="icon">🏪</span> Каналы продаж</router-link>
+        <router-link to="/fair-prep"><span class="icon">🎪</span> Подготовка к ярмарке</router-link>
         <router-link to="/expenses"><span class="icon">📋</span> Расходы</router-link>
         <router-link to="/settings"><span class="icon">⚙️</span> Настройки</router-link>
       </nav>

@@ -12,6 +12,7 @@ const routes = [
       { path: 'materials', component: () => import('../views/MaterialsView.vue') },
       { path: 'sales', component: () => import('../views/SalesView.vue') },
       { path: 'channels', component: () => import('../views/ChannelsView.vue') },
+      { path: 'fair-prep', component: () => import('../views/FairPrepView.vue') },
       { path: 'expenses', component: () => import('../views/ExpensesView.vue') },
       { path: 'settings', component: () => import('../views/SettingsView.vue') },
     ],
