@@ -10,6 +10,24 @@
 
     <div v-if="loading" class="loading">Загрузка...</div>
     <template v-else-if="product">
+      <div class="card" style="margin-bottom:24px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-weight:600">Фотография</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span v-if="uploading" style="font-size:12px;color:var(--text-muted)">Загрузка...</span>
+            <label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0">
+              {{ product.photo ? 'Заменить' : '+ Загрузить' }}
+              <input type="file" accept="image/*" style="display:none" @change="uploadPhoto" :disabled="uploading">
+            </label>
+            <button v-if="product.photo" class="btn btn-danger btn-sm" @click="removePhoto">Удалить</button>
+          </div>
+        </div>
+        <div v-if="product.photo" style="text-align:center">
+          <img :src="'data:image/jpeg;base64,' + product.photo" style="max-width:100%;max-height:360px;border-radius:6px;object-fit:contain">
+        </div>
+        <div v-else class="empty" style="padding:20px 0;font-size:13px">Нет фотографии</div>
+      </div>
+
       <div class="cards-grid" style="margin-bottom:24px">
         <div class="card"><div class="kpi-label">Цена продажи</div><div class="kpi-value">{{ product.sale_price }} {{ cur }}</div></div>
         <div class="card"><div class="kpi-label">Себестоимость</div><div class="kpi-value">{{ product.cost_price ? product.cost_price + ' ' + cur : '—' }}</div></div>
@@ -95,6 +113,7 @@ import { settingsStore } from '../stores/settings.js'
 const route = useRoute()
 const product = ref(null)
 const loading = ref(true)
+const uploading = ref(false)
 const showEdit = ref(false)
 const showAddMaterial = ref(false)
 const allMaterials = ref([])
@@ -141,6 +160,27 @@ async function removeMaterial(m) {
   if (!confirm(`Убрать ${m.material_name} из состава?`)) return
   await productsApi.removeMaterial(route.params.id, m.material_id)
   await load()
+}
+
+async function uploadPhoto(event) {
+  const file = event.target.files[0]
+  if (!file) return
+  uploading.value = true
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    await productsApi.uploadPhoto(route.params.id, fd)
+    await load()
+  } finally {
+    uploading.value = false
+    event.target.value = ''
+  }
+}
+
+async function removePhoto() {
+  if (!confirm('Удалить фотографию?')) return
+  await productsApi.deletePhoto(route.params.id)
+  product.value.photo = null
 }
 
 onMounted(load)

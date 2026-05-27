@@ -13,4 +13,6 @@ export const productsApi = {
   addMaterial: (id, data) => api.post(`/api/v1/products/${id}/materials`, data),
   removeMaterial: (productId, materialId) =>
     api.delete(`/api/v1/products/${productId}/materials/${materialId}`),
+  uploadPhoto: (id, formData) => api.upload(`/api/v1/products/${id}/photo`, formData),
+  deletePhoto: (id) => api.delete(`/api/v1/products/${id}/photo`),
 }
