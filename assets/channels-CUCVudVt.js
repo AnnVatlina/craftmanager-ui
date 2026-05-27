@@ -1,1 +1,0 @@
-import{a}from"./client-CykNFSkZ.js";const p={list:()=>a.get("/api/v1/channels"),get:e=>a.get(`/api/v1/channels/${e}`),create:e=>a.post("/api/v1/channels",e),update:(e,n)=>a.put(`/api/v1/channels/${e}`,n),delete:e=>a.delete(`/api/v1/channels/${e}`)};export{p as c};
