@@ -53,16 +53,17 @@
       <div style="font-weight:600;margin:12px 0 8px">Позиции</div>
       <div class="items-list">
         <div class="item-row" v-for="(item, i) in form.items" :key="i">
-          <select v-model="item.product_id" @change="fillPrice(item)">
-            <option value="">— Изделие —</option>
-            <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option>
-          </select>
+          <div v-if="item.product_id" class="item-product-chosen">
+            <span>{{ item.product_name }}</span>
+            <button class="btn-icon" @click="clearProduct(item)" title="Изменить изделие">✎</button>
+          </div>
+          <ProductPicker v-else placeholder="Изделие..." @select="(p) => pickProduct(item, p)" />
           <input v-model.number="item.quantity" type="number" min="1" placeholder="Кол-во" />
-          <input v-model="item.price" type="number" step="0.01" placeholder="Цена {{ cur }}" />
+          <input v-model="item.price" type="number" step="0.01" :placeholder="`Цена, ${cur}`" />
           <button class="btn-icon" @click="form.items.splice(i, 1)" style="color:var(--danger)">✕</button>
         </div>
       </div>
-      <button class="btn btn-secondary btn-sm" @click="form.items.push({ product_id: '', quantity: 1, price: '' })">+ Позиция</button>
+      <button class="btn btn-secondary btn-sm" @click="form.items.push({ product_id: '', product_name: '', quantity: 1, price: '' })">+ Позиция</button>
       <div class="sale-total" style="margin-top:8px">Итого: {{ saleTotal }} {{ cur }}</div>
       <template #footer>
         <button class="btn btn-secondary" @click="showModal = false">Отмена</button>
@@ -75,14 +76,13 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import BaseModal from '../components/BaseModal.vue'
+import ProductPicker from '../components/ProductPicker.vue'
 import { salesApi } from '../api/sales.js'
 import { channelsApi } from '../api/channels.js'
-import { productsApi } from '../api/products.js'
 import { settingsStore } from '../stores/settings.js'
 
 const sales = ref([])
 const channels = ref([])
-const products = ref([])
 const loading = ref(true)
 const showModal = ref(false)
 const saving = ref(false)
@@ -97,9 +97,15 @@ const channelName = (id) => channels.value.find(c => c.id === id)?.name
 const cur = computed(() => settingsStore.currency)
 const saleTotal = computed(() => form.items.reduce((s, i) => s + (i.quantity * (i.price || 0)), 0).toFixed(2))
 
-function fillPrice(item) {
-  const p = products.value.find(p => p.id === item.product_id)
-  if (p) item.price = p.sale_price
+function pickProduct(item, product) {
+  item.product_id = product.id
+  item.product_name = product.name
+  item.price = product.sale_price
+}
+
+function clearProduct(item) {
+  item.product_id = ''
+  item.product_name = ''
 }
 
 async function load() {
@@ -109,15 +115,14 @@ async function load() {
     if (dateFrom.value) params.date_from = dateFrom.value
     if (dateTo.value) params.date_to = dateTo.value
     if (channelFilter.value) params.channel_id = channelFilter.value
-    const [s, ch, p] = await Promise.all([salesApi.list(params), channelsApi.list(), productsApi.list()])
+    const [s, ch] = await Promise.all([salesApi.list(params), channelsApi.list()])
     sales.value = s.data
     channels.value = ch.data
-    products.value = p.data
   } finally { loading.value = false }
 }
 
 function openCreate() {
-  Object.assign(form, { sale_date: new Date().toISOString().slice(0, 10), channel_id: '', notes: '', items: [{ product_id: '', quantity: 1, price: '' }] })
+  Object.assign(form, { sale_date: new Date().toISOString().slice(0, 10), channel_id: '', notes: '', items: [{ product_id: '', product_name: '', quantity: 1, price: '' }] })
   error.value = ''
   showModal.value = true
 }
@@ -127,7 +132,11 @@ async function save() {
   if (form.items.some(i => !i.price)) { error.value = 'Укажите цену для всех позиций'; return }
   saving.value = true
   try {
-    await salesApi.create({ ...form, channel_id: form.channel_id || null, items: form.items.map(i => ({ ...i, product_id: i.product_id || null })) })
+    await salesApi.create({
+      ...form,
+      channel_id: form.channel_id || null,
+      items: form.items.map((i) => ({ product_id: i.product_id || null, quantity: i.quantity, price: i.price })),
+    })
     showModal.value = false
     await load()
   } catch (e) { error.value = e.message }
@@ -142,3 +151,12 @@ async function deleteSale(id) {
 
 onMounted(load)
 </script>
+
+<style scoped>
+.item-product-chosen {
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+  padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;
+}
+.item-product-chosen span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-product-chosen .btn-icon { flex-shrink: 0; padding: 0; }
+</style>
