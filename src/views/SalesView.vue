@@ -42,7 +42,7 @@
         <div class="form-group"><label>Дата *</label><input v-model="form.sale_date" type="date" /></div>
         <div class="form-group">
           <label>Канал продаж</label>
-          <select v-model="form.channel_id">
+          <select v-model="form.channel_id" @change="onChannelChange">
             <option value="">—</option>
             <option v-for="c in channels" :key="c.id" :value="c.id">{{ c.name }}</option>
           </select>
@@ -57,7 +57,7 @@
             <span>{{ item.product_name }}</span>
             <button class="btn-icon" @click="clearProduct(item)" title="Изменить изделие">✎</button>
           </div>
-          <ProductPicker v-else placeholder="Изделие..." @select="(p) => pickProduct(item, p)" />
+          <ProductPicker v-else placeholder="Изделие..." :products="channelProducts" @select="(p) => pickProduct(item, p)" />
           <input v-model.number="item.quantity" type="number" min="1" placeholder="Кол-во" />
           <input v-model="item.price" type="number" step="0.01" :placeholder="`Цена, ${cur}`" />
           <button class="btn-icon" @click="form.items.splice(i, 1)" style="color:var(--danger)">✕</button>
@@ -79,6 +79,7 @@ import BaseModal from '../components/BaseModal.vue'
 import ProductPicker from '../components/ProductPicker.vue'
 import { salesApi } from '../api/sales.js'
 import { channelsApi } from '../api/channels.js'
+import { fairPrepApi } from '../api/fairPrep.js'
 import { settingsStore } from '../stores/settings.js'
 
 const sales = ref([])
@@ -92,15 +93,61 @@ const dateTo = ref('')
 const channelFilter = ref('')
 const form = reactive({ sale_date: new Date().toISOString().slice(0, 10), channel_id: '', notes: '', items: [] })
 
+// Products the picker offers when a channel with a fair-prep list is
+// selected — null means "no scoping, search the whole catalog".
+const channelProducts = ref(null)
+// product_id -> channel_id, built once per "New Sale" open, so picking a
+// product that was added to some fair's prep list can auto-fill the channel
+// even if it wasn't chosen yet (see pickProduct()).
+let productChannelMap = {}
+
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('ru-RU') : '—'
 const channelName = (id) => channels.value.find(c => c.id === id)?.name
 const cur = computed(() => settingsStore.currency)
 const saleTotal = computed(() => form.items.reduce((s, i) => s + (i.quantity * (i.price || 0)), 0).toFixed(2))
 
+async function onChannelChange() {
+  channelProducts.value = null
+  if (!form.channel_id) return
+  try {
+    const res = await fairPrepApi.getPrep(form.channel_id)
+    if (res.data.items.length) {
+      channelProducts.value = res.data.items.map((i) => ({
+        id: i.product_id, name: i.product_name, category: i.category, sale_price: i.sale_price,
+      }))
+    }
+  } catch {
+    channelProducts.value = null
+  }
+}
+
+async function buildProductChannelMap() {
+  productChannelMap = {}
+  try {
+    const chRes = await fairPrepApi.listChannels()
+    const preps = await Promise.all(chRes.data.map((c) => fairPrepApi.getPrep(c.id).catch(() => null)))
+    const map = {}
+    preps.forEach((prepRes, idx) => {
+      if (!prepRes) return
+      for (const item of prepRes.data.items) {
+        if (!(item.product_id in map)) map[item.product_id] = chRes.data[idx].id
+      }
+    })
+    productChannelMap = map
+  } catch {
+    productChannelMap = {}
+  }
+}
+
 function pickProduct(item, product) {
   item.product_id = product.id
   item.product_name = product.name
   item.price = product.sale_price
+
+  if (!form.channel_id && productChannelMap[product.id]) {
+    form.channel_id = productChannelMap[product.id]
+    onChannelChange()
+  }
 }
 
 function clearProduct(item) {
@@ -123,8 +170,10 @@ async function load() {
 
 function openCreate() {
   Object.assign(form, { sale_date: new Date().toISOString().slice(0, 10), channel_id: '', notes: '', items: [{ product_id: '', product_name: '', quantity: 1, price: '' }] })
+  channelProducts.value = null
   error.value = ''
   showModal.value = true
+  buildProductChannelMap()
 }
 
 async function save() {

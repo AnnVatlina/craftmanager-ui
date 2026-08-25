@@ -4,10 +4,14 @@ import SalesView from '../../src/views/SalesView.vue'
 import { salesApi } from '../../src/api/sales.js'
 import { channelsApi } from '../../src/api/channels.js'
 import { productsApi } from '../../src/api/products.js'
+import { fairPrepApi } from '../../src/api/fairPrep.js'
 
 vi.mock('../../src/api/sales.js', () => ({ salesApi: { list: vi.fn(), create: vi.fn() } }))
 vi.mock('../../src/api/channels.js', () => ({ channelsApi: { list: vi.fn() } }))
 vi.mock('../../src/api/products.js', () => ({ productsApi: { list: vi.fn() } }))
+vi.mock('../../src/api/fairPrep.js', () => ({
+  fairPrepApi: { listChannels: vi.fn(), getPrep: vi.fn(), addItem: vi.fn(), updateItem: vi.fn(), removeItem: vi.fn() },
+}))
 
 // ProductPicker's dropdown is <Teleport to="body">, and BaseModal itself
 // teleports there too — both escape the mounted wrapper's own DOM tree.
@@ -19,23 +23,50 @@ async function flush() {
   for (let i = 0; i < 5; i++) await Promise.resolve()
 }
 
+const BEAR = { id: 'p1', name: 'Плюшевый мишка', category: 'Игрушки', sale_price: '25.00' }
+const OTHER = { id: 'p2', name: 'Другая игрушка', category: 'Игрушки', sale_price: '10.00' }
+
+function fairItem(product) {
+  return {
+    id: 'fi-' + product.id, product_id: product.id, product_name: product.name,
+    category: product.category, sale_price: product.sale_price, planned_qty: 1, stock_qty: 5, need_to_make: 0,
+  }
+}
+
 describe('SalesView — ProductPicker integration', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     salesApi.list.mockReset().mockResolvedValue({ data: [] })
-    channelsApi.list.mockReset().mockResolvedValue({ data: [{ id: 'c1', name: 'Инстаграм' }] })
-    productsApi.list.mockReset().mockResolvedValue({
-      data: [{ id: 'p1', name: 'Плюшевый мишка', category: 'Игрушки', sale_price: '25.00' }],
+    channelsApi.list.mockReset().mockResolvedValue({
+      data: [{ id: 'c1', name: 'Инстаграм' }, { id: 'c2', name: 'Ярмарка Х' }],
     })
+    // c2 has BEAR in its fair-prep list; c1 (a лс channel) has none.
+    fairPrepApi.listChannels.mockReset().mockResolvedValue({
+      data: [{ id: 'c2', name: 'Ярмарка Х', event_date: null, location: null }],
+    })
+    fairPrepApi.getPrep.mockReset().mockImplementation((channelId) => Promise.resolve({
+      data: {
+        channel: { id: channelId, name: '', event_date: null, location: null },
+        items: channelId === 'c2' ? [fairItem(BEAR)] : [],
+        summary: { total_positions: 0, total_planned: 0, total_need_to_make: 0 },
+      },
+    }))
+    // General catalog search returns a DIFFERENT product than the fair list,
+    // so tests can tell which source the picker is actually drawing from.
+    productsApi.list.mockReset().mockResolvedValue({ data: [OTHER] })
   })
   afterEach(() => vi.useRealTimers())
+
+  async function openModal(wrapper) {
+    await body().find('button.btn-primary').trigger('click') // "+ Новая продажа"
+    await wrapper.vm.$nextTick()
+    await flush() // let buildProductChannelMap()'s requests settle
+  }
 
   it('picking a product fills product_id and price, and shows it instead of the picker', async () => {
     const wrapper = mount(SalesView, { attachTo: document.body })
     await flush()
-
-    await body().find('button.btn-primary').trigger('click') // "+ Новая продажа"
-    await wrapper.vm.$nextTick()
+    await openModal(wrapper)
 
     const pickerInput = body().find('.product-picker input')
     expect(pickerInput.exists()).toBe(true)
@@ -43,15 +74,15 @@ describe('SalesView — ProductPicker integration', () => {
     await flush()
 
     const item = body().find('.picker-item')
-    expect(item.text()).toContain('Плюшевый мишка')
+    expect(item.text()).toContain('Другая игрушка')
     await item.trigger('mousedown')
     await wrapper.vm.$nextTick()
 
     // Picker is replaced by the chosen-product chip; price is prefilled from sale_price.
     expect(body().find('.product-picker').exists()).toBe(false)
-    expect(body().find('.item-product-chosen').text()).toContain('Плюшевый мишка')
+    expect(body().find('.item-product-chosen').text()).toContain('Другая игрушка')
     const priceInput = body().findAll('.item-row input[type=number]')[1]
-    expect(priceInput.element.value).toBe('25.00')
+    expect(priceInput.element.value).toBe('10.00')
 
     wrapper.unmount()
   })
@@ -59,8 +90,7 @@ describe('SalesView — ProductPicker integration', () => {
   it('clicking the edit button brings the picker back for that row', async () => {
     const wrapper = mount(SalesView, { attachTo: document.body })
     await flush()
-    await body().find('button.btn-primary').trigger('click')
-    await wrapper.vm.$nextTick()
+    await openModal(wrapper)
 
     await body().find('.product-picker input').trigger('focus')
     await flush()
@@ -84,6 +114,80 @@ describe('SalesView — ProductPicker integration', () => {
     // the whole product catalog on mount, even before the create-sale modal
     // was ever opened. Now nothing calls /products until a picker exists.
     expect(productsApi.list).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('selecting a channel with a fair-prep list scopes the picker to just those products', async () => {
+    const wrapper = mount(SalesView, { attachTo: document.body })
+    await flush()
+    await openModal(wrapper)
+
+    await body().find('.modal select').setValue('c2') // "Канал продаж" select
+    await flush()
+
+    await body().find('.product-picker input').trigger('focus')
+    await wrapper.vm.$nextTick()
+
+    const text = body().findAll('.picker-item').map((i) => i.text()).join(' ')
+    expect(text).toContain('Плюшевый мишка') // from c2's fair-prep list
+    expect(text).not.toContain('Другая игрушка') // the general-catalog product must not leak in
+
+    wrapper.unmount()
+  })
+
+  it('selecting a channel with no fair-prep list keeps full-catalog search', async () => {
+    const wrapper = mount(SalesView, { attachTo: document.body })
+    await flush()
+    await openModal(wrapper)
+
+    await body().find('.modal select').setValue('c1')
+    await flush()
+
+    await body().find('.product-picker input').trigger('focus')
+    await wrapper.vm.$nextTick()
+
+    const text = body().findAll('.picker-item').map((i) => i.text()).join(' ')
+    expect(text).toContain('Другая игрушка') // falls back to the general catalog search
+
+    wrapper.unmount()
+  })
+
+  it('auto-fills the channel when a picked product belongs to its fair-prep list and no channel was chosen yet', async () => {
+    productsApi.list.mockResolvedValue({ data: [BEAR] }) // general search happens to surface the fair product too
+    const wrapper = mount(SalesView, { attachTo: document.body })
+    await flush()
+    await openModal(wrapper)
+
+    await body().find('.product-picker input').trigger('focus')
+    await flush()
+    const item = body().findAll('.picker-item').find((i) => i.text().includes('Плюшевый мишка'))
+    await item.trigger('mousedown')
+    await flush()
+
+    expect(body().find('.modal select').element.value).toBe('c2')
+
+    wrapper.unmount()
+  })
+
+  it('does not override an already-selected channel', async () => {
+    const wrapper = mount(SalesView, { attachTo: document.body })
+    await flush()
+    await openModal(wrapper)
+
+    await body().find('.modal select').setValue('c1') // pick a channel that does NOT own BEAR
+    await flush()
+
+    // c1 has no fair-prep list, so the picker falls back to the general
+    // catalog search — which, for this test, happens to return BEAR (who
+    // "belongs" to c2 per the fair-prep map).
+    productsApi.list.mockResolvedValue({ data: [BEAR] })
+    await body().find('.product-picker input').trigger('focus')
+    await flush()
+    await body().find('.picker-item').trigger('mousedown')
+    await flush()
+
+    expect(body().find('.modal select').element.value).toBe('c1')
 
     wrapper.unmount()
   })
