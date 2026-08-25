@@ -51,10 +51,45 @@ async function request(path, options = {}) {
   return res.json()
 }
 
+async function download(path, filename) {
+  const token = localStorage.getItem('access_token')
+  const headers = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  let res = await fetch(`${API_BASE}${path}`, { headers })
+
+  if (res.status === 401) {
+    const refreshed = await tryRefresh()
+    if (refreshed) {
+      headers['Authorization'] = `Bearer ${localStorage.getItem('access_token')}`
+      res = await fetch(`${API_BASE}${path}`, { headers })
+    } else {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      window.location.hash = '#/login'
+      throw new Error('Unauthorized')
+    }
+  }
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Ошибка ${res.status}`)
+  }
+
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export const api = {
   get: (path) => request(path),
   post: (path, body) => request(path, { method: 'POST', body: JSON.stringify(body) }),
   put: (path, body) => request(path, { method: 'PUT', body: JSON.stringify(body) }),
   delete: (path) => request(path, { method: 'DELETE' }),
   upload: (path, formData) => request(path, { method: 'POST', body: formData }),
+  download,
 }

@@ -49,6 +49,36 @@
         <button class="btn btn-primary" @click="save" :disabled="saving">{{ saving ? '...' : 'Сохранить' }}</button>
         <button class="btn btn-danger" @click="logout">Выйти</button>
       </div>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0" />
+
+      <div style="font-weight:600;margin-bottom:8px">Экспорт данных</div>
+      <div style="color:var(--text-secondary);font-size:14px;margin-bottom:12px">
+        Скачать все данные в виде ZIP-архива с CSV-файлами (товары, материалы, продажи, расходы и др.)
+      </div>
+      <div v-if="exportError" class="alert alert-error">{{ exportError }}</div>
+      <button class="btn btn-secondary" @click="doExport" :disabled="exporting">
+        {{ exporting ? 'Подготовка...' : 'Скачать экспорт (CSV)' }}
+      </button>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0" />
+
+      <div style="font-weight:600;margin-bottom:8px">Импорт данных</div>
+      <div style="color:var(--text-secondary);font-size:14px;margin-bottom:12px">
+        Загрузить ZIP-архив, полученный через экспорт. Существующие записи (по ID) не перезаписываются; настройки обновляются всегда.
+      </div>
+      <div v-if="importError" class="alert alert-error">{{ importError }}</div>
+      <div v-if="importResult" class="alert alert-success">
+        Импорт завершён: товары {{ importResult.products }}, материалы {{ importResult.materials }},
+        продажи {{ importResult.sales }}, расходы {{ importResult.expenses }},
+        покупатели {{ importResult.buyers }}.
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label class="btn btn-secondary" style="cursor:pointer">
+          {{ importing ? 'Импорт...' : 'Выбрать ZIP и импортировать' }}
+          <input type="file" accept=".zip" style="display:none" :disabled="importing" @change="doImport" />
+        </label>
+      </div>
     </div>
   </div>
 </template>
@@ -56,12 +86,19 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { settingsApi } from '../api/settings.js'
+import { exportApi } from '../api/export.js'
+import { importApi } from '../api/import.js'
 import { settingsStore } from '../stores/settings.js'
 import { authStore } from '../stores/auth.js'
 
 const saving = ref(false)
 const saved = ref(false)
 const error = ref('')
+const exporting = ref(false)
+const exportError = ref('')
+const importing = ref(false)
+const importError = ref('')
+const importResult = ref(null)
 const form = reactive({ currency: 'Br', categories: [], expense_categories: [], material_units: [], low_stock_threshold: 5 })
 
 async function load() {
@@ -90,6 +127,30 @@ async function save() {
     setTimeout(() => saved.value = false, 3000)
   } catch (e) { error.value = e.message }
   finally { saving.value = false }
+}
+
+async function doImport(e) {
+  const file = e.target.files[0]
+  if (!file) return
+  e.target.value = ''
+  importing.value = true
+  importError.value = ''
+  importResult.value = null
+  try {
+    const res = await importApi.importCsv(file)
+    importResult.value = res.data.imported
+    setTimeout(() => importResult.value = null, 6000)
+  } catch (err) { importError.value = err.message }
+  finally { importing.value = false }
+}
+
+async function doExport() {
+  exporting.value = true
+  exportError.value = ''
+  try {
+    await exportApi.downloadCsv()
+  } catch (e) { exportError.value = e.message }
+  finally { exporting.value = false }
 }
 
 const logout = () => authStore.logout()
