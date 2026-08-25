@@ -35,13 +35,29 @@ src/
 ├── stores/
 │   ├── auth.js              # isAuthenticated, logout()
 │   └── settings.js          # currency/categories/units, грузится из API при старте
+├── composables/
+│   └── useProductPicker.js   # Поиск/дебаунс/пагинация для ProductPicker — вынесено для тестируемости без монтирования компонента
 ├── router/
 │   └── index.js             # Маршруты + guard на авторизацию
 ├── components/
 │   ├── AppLayout.vue         # Сайдбар, мобильная шапка, <router-view>
-│   └── BaseModal.vue          # Переиспользуемый модальный диалог
+│   ├── BaseModal.vue          # Переиспользуемый модальный диалог
+│   └── ProductPicker.vue      # Поиск изделия — используется в Fair Prep и в позициях продажи
 └── views/                     # По странице на сущность
+
+tests/                    # Vitest + @vue/test-utils, зеркалирует структуру src/
+├── composables/
+├── components/
+└── views/
 ```
+
+## Тестирование
+
+```bash
+npm test
+```
+
+Vitest + `@vue/test-utils`, окружение `jsdom` (см. `vite.config.js`). CI (`.github/workflows/deploy.yml`) гоняет их в отдельном job перед деплоем — красные тесты блокируют публикацию на GitHub Pages.
 
 ## Сборка и деплой
 
