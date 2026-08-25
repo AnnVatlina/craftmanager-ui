@@ -1,1 +1,0 @@
-import{e,C as t}from"./index-D88AuXWx.js";const r=e({get isAuthenticated(){return!!localStorage.getItem("access_token")},logout(){localStorage.removeItem("access_token"),localStorage.removeItem("refresh_token"),t.push("/login")}});export{r as a};
