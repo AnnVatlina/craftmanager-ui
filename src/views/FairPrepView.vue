@@ -97,12 +97,14 @@
                 <!-- Add row -->
                 <tr style="background:var(--surface-hover, #f8fafc)">
                   <td colspan="2">
-                    <select v-model="newProductId" style="width:100%">
-                      <option value="">— Добавить изделие —</option>
-                      <option v-for="p in availableProducts" :key="p.id" :value="p.id">
-                        {{ p.name }}{{ p.category ? ' · ' + p.category : '' }}
-                      </option>
-                    </select>
+                    <div v-if="newProduct" style="display:flex;align-items:center;gap:8px">
+                      <span>
+                        {{ newProduct.name }}
+                        <span v-if="newProduct.category" style="color:var(--text-muted)"> · {{ newProduct.category }}</span>
+                      </span>
+                      <button class="btn-icon" @click="newProduct = null">✕</button>
+                    </div>
+                    <ProductPicker v-else :exclude-ids="usedProductIds" @select="p => newProduct = p" />
                   </td>
                   <td></td>
                   <td style="text-align:center">
@@ -110,7 +112,7 @@
                   </td>
                   <td colspan="2"></td>
                   <td>
-                    <button class="btn btn-primary btn-sm" :disabled="!newProductId || adding" @click="addItem">
+                    <button class="btn btn-primary btn-sm" :disabled="!newProduct || adding" @click="addItem">
                       {{ adding ? '...' : '+ Добавить' }}
                     </button>
                   </td>
@@ -134,17 +136,16 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { fairPrepApi } from '../api/fairPrep.js'
-import { productsApi } from '../api/products.js'
 import { settingsStore } from '../stores/settings.js'
+import ProductPicker from '../components/ProductPicker.vue'
 
 const channels = ref([])
 const selectedChannelId = ref('')
 const prep = ref(null)
 const loading = ref(false)
 const adding = ref(false)
-const newProductId = ref('')
+const newProduct = ref(null)
 const newQty = ref(1)
-const allProducts = ref([])
 const filterCategory = ref('')
 const sortBy = ref('name')
 
@@ -159,12 +160,9 @@ const activeFilters = computed(() => {
   return f
 })
 
-const availableProducts = computed(() => {
-  if (!prep.value) return allProducts.value
-  const usedIds = new Set(prep.value.items.map(i => i.product_id))
-  // show all products in the add-row regardless of active category filter
-  return allProducts.value.filter(p => !usedIds.has(p.id))
-})
+// Products already on the list are excluded from the picker (server rejects
+// duplicates anyway, but this way they're never even offered again).
+const usedProductIds = computed(() => prep.value ? prep.value.items.map(i => i.product_id) : [])
 
 async function reload() {
   if (!selectedChannelId.value) return
@@ -183,16 +181,16 @@ function onChannelChange() {
 }
 
 async function addItem() {
-  if (!newProductId.value) return
+  if (!newProduct.value) return
   adding.value = true
   try {
     const res = await fairPrepApi.addItem(
       selectedChannelId.value,
-      { product_id: newProductId.value, planned_qty: newQty.value || 1 },
+      { product_id: newProduct.value.id, planned_qty: newQty.value || 1 },
       activeFilters.value,
     )
     prep.value = res.data
-    newProductId.value = ''
+    newProduct.value = null
     newQty.value = 1
   } finally { adding.value = false }
 }
@@ -265,8 +263,7 @@ function printList() {
 }
 
 onMounted(async () => {
-  const [ch, pr] = await Promise.all([fairPrepApi.listChannels(), productsApi.list()])
+  const ch = await fairPrepApi.listChannels()
   channels.value = ch.data
-  allProducts.value = pr.data
 })
 </script>
