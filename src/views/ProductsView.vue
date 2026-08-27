@@ -21,6 +21,15 @@
           <option value="false">Нет в наличии</option>
         </select>
       </div>
+      <div class="form-group">
+        <label>Поиск</label>
+        <input
+          v-model="filterSearch"
+          type="search"
+          placeholder="Название игрушки..."
+          @input="onSearchInput"
+        />
+      </div>
     </div>
 
     <div v-if="!loading && meta.total > 0" class="summary-bar">
@@ -101,6 +110,8 @@ const editing = ref(null)
 const error = ref('')
 const filterCategory = ref('')
 const filterInStock = ref('')
+const filterSearch = ref('')
+let searchTimer
 const meta = ref({ total: 0, page: 1, pages: 1, per_page: 20, total_stock_value: 0 })
 const form = reactive({ name: '', category: '', sale_price: '', stock_qty: 0, description: '' })
 
@@ -115,6 +126,7 @@ async function load() {
     const params = { page: meta.value.page, per_page: meta.value.per_page }
     if (filterCategory.value) params.category = filterCategory.value
     if (filterInStock.value !== '') params.in_stock = filterInStock.value
+    if (filterSearch.value.trim()) params.search = filterSearch.value.trim()
     const res = await productsApi.list(params)
     products.value = res.data
     meta.value = { ...meta.value, ...res.meta }
@@ -124,6 +136,11 @@ async function load() {
 function changePage(page) {
   meta.value.page = page
   load()
+}
+
+function onSearchInput() {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => changePage(1), 250)
 }
 
 function openCreate() {
