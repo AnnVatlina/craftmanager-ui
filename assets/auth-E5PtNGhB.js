@@ -1,0 +1,1 @@
+import{e,B as t}from"./index-EpncmicG.js";const r=e({get isAuthenticated(){return!!localStorage.getItem("access_token")},logout(){localStorage.removeItem("access_token"),localStorage.removeItem("refresh_token"),t.push("/login")}});export{r as a};
