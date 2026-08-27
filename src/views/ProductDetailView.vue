@@ -5,7 +5,10 @@
         <button class="btn btn-secondary btn-sm" @click="$router.back()">← Назад</button>
         <h1 class="page-title">{{ product?.name || '...' }}</h1>
       </div>
-      <button class="btn btn-primary btn-sm" @click="showEdit = true">Редактировать</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" @click="showRestock = true">Пополнить</button>
+        <button class="btn btn-primary btn-sm" @click="showEdit = true">Редактировать</button>
+      </div>
     </div>
 
     <div v-if="loading" class="loading">Загрузка...</div>
@@ -64,21 +67,21 @@
           </div>
         </div>
 
-        <div class="card restock-card">
-          <div class="section-title">Пополнение</div>
-          <div class="restock-current">На складе: <strong>{{ product.stock_qty }} шт</strong></div>
-          <div v-if="restockError" class="alert alert-error">{{ restockError }}</div>
-          <div class="form-group">
-            <label>Количество *</label>
-            <input v-model.number="restockForm.qty" type="number" min="1" step="1" placeholder="Например, 5" />
+        <div class="card">
+          <div class="section-title">История пополнений</div>
+          <div v-if="!productions.length" class="empty" style="padding:20px 0;font-size:13px">Пополнений пока нет</div>
+          <div v-else class="table-wrap">
+            <table>
+              <thead><tr><th>Дата</th><th>Количество</th><th>Источник</th></tr></thead>
+              <tbody>
+                <tr v-for="production in productions" :key="production.id">
+                  <td>{{ fmtDate(production.produced_at) }}</td>
+                  <td>{{ production.quantity }} шт</td>
+                  <td>{{ productionSource(production.source) }}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <div class="form-group">
-            <label>Дата производства</label>
-            <input v-model="restockForm.produced_at" type="date" />
-          </div>
-          <button class="btn btn-primary" @click="restock" :disabled="restocking">
-            {{ restocking ? 'Сохранение...' : 'Пополнить остаток' }}
-          </button>
         </div>
       </div>
     </template>
@@ -118,6 +121,18 @@
         <button class="btn btn-primary" @click="addMaterial">Добавить</button>
       </template>
     </BaseModal>
+
+    <BaseModal v-if="showRestock" title="Пополнить остаток" @close="showRestock = false">
+      <div v-if="restockError" class="alert alert-error">{{ restockError }}</div>
+      <div class="form-row">
+        <div class="form-group"><label>Количество *</label><input v-model.number="restockForm.qty" type="number" min="1" step="1" /></div>
+        <div class="form-group"><label>Дата производства</label><input v-model="restockForm.produced_at" type="date" /></div>
+      </div>
+      <template #footer>
+        <button class="btn btn-secondary" @click="showRestock = false">Отмена</button>
+        <button class="btn btn-primary" @click="restock" :disabled="restocking">{{ restocking ? 'Сохранение...' : 'Пополнить' }}</button>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
@@ -142,6 +157,7 @@ const restockError = ref('')
 const editForm = reactive({})
 const matForm = reactive({ material_id: '', quantity: '' })
 const restockForm = reactive({ qty: '', produced_at: '' })
+const productions = ref([])
 
 const cur = computed(() => settingsStore.currency)
 const categories = computed(() => settingsStore.categories)
@@ -150,13 +166,20 @@ const margin = computed(() => {
   return Math.round((product.value.sale_price - product.value.cost_price) / product.value.sale_price * 100)
 })
 const today = () => new Date().toISOString().slice(0, 10)
+const fmtDate = (value) => value ? new Date(value).toLocaleDateString('ru-RU') : '—'
+const productionSource = (source) => source === 'backfill' ? 'Восстановленная запись' : source === 'correction' ? 'Корректировка' : 'Производство'
 
 async function load() {
   loading.value = true
   try {
-    const [p, m] = await Promise.all([productsApi.get(route.params.id), materialsApi.list()])
+    const [p, m, history] = await Promise.all([
+      productsApi.get(route.params.id),
+      materialsApi.list(),
+      productsApi.productions(route.params.id),
+    ])
     product.value = p.data
     allMaterials.value = m.data
+    productions.value = history.data
     Object.assign(editForm, { name: p.data.name, category: p.data.category || '', sale_price: p.data.sale_price, stock_qty: p.data.stock_qty, description: p.data.description || '' })
     Object.assign(restockForm, { qty: '', produced_at: today() })
   } finally { loading.value = false }

@@ -9,6 +9,7 @@ export const productsApi = {
   create: (data) => api.post('/api/v1/products', data),
   update: (id, data) => api.put(`/api/v1/products/${id}`, data),
   restock: (id, data) => api.post(`/api/v1/products/${id}/restock`, data),
+  productions: (id) => api.get(`/api/v1/products/${id}/productions`),
   delete: (id) => api.delete(`/api/v1/products/${id}`),
   getMaterials: (id) => api.get(`/api/v1/products/${id}/materials`),
   addMaterial: (id, data) => api.post(`/api/v1/products/${id}/materials`, data),
