@@ -220,7 +220,7 @@ async function restock() {
 }
 
 async function deleteProduct(id) {
-  if (!confirm('Удалить изделие?')) return
+  if (!confirm('Если у изделия есть продажи, оно будет архивировано. Удалить изделие?')) return
   await productsApi.delete(id)
   await load()
 }
