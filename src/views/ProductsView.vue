@@ -58,6 +58,7 @@
               </td>
               <td><span :class="p.stock_qty > 0 ? 'badge-success' : 'badge-danger'" class="badge">{{ p.stock_qty }}</span></td>
               <td @click.stop>
+                <button class="btn btn-secondary btn-sm" @click="openRestock(p)">Пополнить</button>
                 <button class="btn-icon" @click="editProduct(p)">✏️</button>
                 <button class="btn-icon" @click="deleteProduct(p.id)">🗑</button>
               </td>
@@ -86,11 +87,30 @@
         </div>
         <div class="form-group"><label>Цена продажи *</label><input v-model="form.sale_price" type="number" step="0.01" /></div>
       </div>
-      <div class="form-group"><label>Остаток</label><input v-model="form.stock_qty" type="number" /></div>
+      <div v-if="!editing" class="form-group">
+        <label>Начальный остаток</label>
+        <input v-model.number="form.stock_qty" type="number" min="0" />
+      </div>
+      <div v-if="!editing && form.stock_qty > 0" class="form-group">
+        <label>Дата производства</label>
+        <input v-model="form.produced_at" type="date" />
+      </div>
       <div class="form-group"><label>Описание</label><textarea v-model="form.description"></textarea></div>
       <template #footer>
         <button class="btn btn-secondary" @click="showModal = false">Отмена</button>
         <button class="btn btn-primary" @click="save" :disabled="saving">{{ saving ? '...' : 'Сохранить' }}</button>
+      </template>
+    </BaseModal>
+
+    <BaseModal v-if="showRestock" :title="`Пополнить: ${restocking?.name}`" @close="showRestock = false">
+      <div v-if="restockError" class="alert alert-error">{{ restockError }}</div>
+      <div class="form-row">
+        <div class="form-group"><label>Количество *</label><input v-model.number="restockForm.qty" type="number" min="1" step="1" /></div>
+        <div class="form-group"><label>Дата производства</label><input v-model="restockForm.produced_at" type="date" /></div>
+      </div>
+      <template #footer>
+        <button class="btn btn-secondary" @click="showRestock = false">Отмена</button>
+        <button class="btn btn-primary" @click="restock" :disabled="restockingSaving">{{ restockingSaving ? '...' : 'Пополнить' }}</button>
       </template>
     </BaseModal>
   </div>
@@ -105,20 +125,26 @@ import { settingsStore } from '../stores/settings.js'
 const products = ref([])
 const loading = ref(true)
 const showModal = ref(false)
+const showRestock = ref(false)
 const saving = ref(false)
+const restockingSaving = ref(false)
 const editing = ref(null)
+const restocking = ref(null)
 const error = ref('')
+const restockError = ref('')
 const filterCategory = ref('')
 const filterInStock = ref('')
 const filterSearch = ref('')
 let searchTimer
 const meta = ref({ total: 0, page: 1, pages: 1, per_page: 20, total_stock_value: 0 })
-const form = reactive({ name: '', category: '', sale_price: '', stock_qty: 0, description: '' })
+const form = reactive({ name: '', category: '', sale_price: '', stock_qty: 0, produced_at: '', description: '' })
+const restockForm = reactive({ qty: '', produced_at: '' })
 
 const cur = computed(() => settingsStore.currency)
 const categories = computed(() => settingsStore.categories)
 const margin = (p) => p.cost_price ? Math.round((p.sale_price - p.cost_price) / p.sale_price * 100) : 0
 const fmt = (v) => Number(v || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const today = () => new Date().toISOString().slice(0, 10)
 
 async function load() {
   loading.value = true
@@ -145,28 +171,52 @@ function onSearchInput() {
 
 function openCreate() {
   editing.value = null
-  Object.assign(form, { name: '', category: '', sale_price: '', stock_qty: 0, description: '' })
+  Object.assign(form, { name: '', category: '', sale_price: '', stock_qty: 0, produced_at: today(), description: '' })
   error.value = ''
   showModal.value = true
 }
 
 function editProduct(p) {
   editing.value = p.id
-  Object.assign(form, { name: p.name, category: p.category || '', sale_price: p.sale_price, stock_qty: p.stock_qty, description: p.description || '' })
+  Object.assign(form, { name: p.name, category: p.category || '', sale_price: p.sale_price, stock_qty: p.stock_qty, produced_at: '', description: p.description || '' })
   error.value = ''
   showModal.value = true
+}
+
+function openRestock(p) {
+  restocking.value = p
+  Object.assign(restockForm, { qty: '', produced_at: today() })
+  restockError.value = ''
+  showRestock.value = true
 }
 
 async function save() {
   if (!form.name || !form.sale_price) { error.value = 'Заполните обязательные поля'; return }
   saving.value = true
   try {
-    if (editing.value) await productsApi.update(editing.value, form)
-    else await productsApi.create(form)
+    if (editing.value) {
+      const { name, category, sale_price, description } = form
+      await productsApi.update(editing.value, { name, category, sale_price, description })
+    } else await productsApi.create(form)
     showModal.value = false
     await load()
   } catch (e) { error.value = e.message }
   finally { saving.value = false }
+}
+
+async function restock() {
+  if (!restockForm.qty || restockForm.qty < 1) {
+    restockError.value = 'Укажите количество'
+    return
+  }
+  restockingSaving.value = true
+  restockError.value = ''
+  try {
+    await productsApi.restock(restocking.value.id, restockForm)
+    showRestock.value = false
+    await load()
+  } catch (e) { restockError.value = e.message }
+  finally { restockingSaving.value = false }
 }
 
 async function deleteProduct(id) {
