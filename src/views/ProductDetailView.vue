@@ -38,28 +38,47 @@
         <div class="card"><div class="kpi-label">На складе</div><div class="kpi-value">{{ product.stock_qty }} шт</div></div>
       </div>
 
-      <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <div style="font-weight:600">Состав (материалы)</div>
-          <button class="btn btn-secondary btn-sm" @click="showAddMaterial = true">+ Добавить</button>
+      <div class="detail-grid">
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div style="font-weight:600">Состав (материалы)</div>
+            <button class="btn btn-secondary btn-sm" @click="showAddMaterial = true">+ Добавить</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Материал</th><th>Кол-во</th><th>Ед.</th><th>Цена/ед.</th><th>Стоимость</th><th></th></tr></thead>
+              <tbody>
+                <tr v-for="m in product.materials" :key="m.id">
+                  <td>{{ m.material_name }}</td>
+                  <td>{{ m.quantity }}</td>
+                  <td>{{ m.material_unit }}</td>
+                  <td>{{ m.material_price }} {{ cur }}</td>
+                  <td>{{ (m.quantity * m.material_price).toFixed(2) }} {{ cur }}</td>
+                  <td><button class="btn-icon" @click="removeMaterial(m)">🗑</button></td>
+                </tr>
+                <tr v-if="!product.materials?.length">
+                  <td colspan="6" class="empty">Материалы не добавлены</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Материал</th><th>Кол-во</th><th>Ед.</th><th>Цена/ед.</th><th>Стоимость</th><th></th></tr></thead>
-            <tbody>
-              <tr v-for="m in product.materials" :key="m.id">
-                <td>{{ m.material_name }}</td>
-                <td>{{ m.quantity }}</td>
-                <td>{{ m.material_unit }}</td>
-                <td>{{ m.material_price }} {{ cur }}</td>
-                <td>{{ (m.quantity * m.material_price).toFixed(2) }} {{ cur }}</td>
-                <td><button class="btn-icon" @click="removeMaterial(m)">🗑</button></td>
-              </tr>
-              <tr v-if="!product.materials?.length">
-                <td colspan="6" class="empty">Материалы не добавлены</td>
-              </tr>
-            </tbody>
-          </table>
+
+        <div class="card restock-card">
+          <div class="section-title">Пополнение</div>
+          <div class="restock-current">На складе: <strong>{{ product.stock_qty }} шт</strong></div>
+          <div v-if="restockError" class="alert alert-error">{{ restockError }}</div>
+          <div class="form-group">
+            <label>Количество *</label>
+            <input v-model.number="restockForm.qty" type="number" min="1" step="1" placeholder="Например, 5" />
+          </div>
+          <div class="form-group">
+            <label>Дата производства</label>
+            <input v-model="restockForm.produced_at" type="date" />
+          </div>
+          <button class="btn btn-primary" @click="restock" :disabled="restocking">
+            {{ restocking ? 'Сохранение...' : 'Пополнить остаток' }}
+          </button>
         </div>
       </div>
     </template>
@@ -116,10 +135,13 @@ const loading = ref(true)
 const uploading = ref(false)
 const showEdit = ref(false)
 const showAddMaterial = ref(false)
+const restocking = ref(false)
 const allMaterials = ref([])
 const matError = ref('')
+const restockError = ref('')
 const editForm = reactive({})
 const matForm = reactive({ material_id: '', quantity: '' })
+const restockForm = reactive({ qty: '', produced_at: '' })
 
 const cur = computed(() => settingsStore.currency)
 const categories = computed(() => settingsStore.categories)
@@ -127,6 +149,7 @@ const margin = computed(() => {
   if (!product.value?.cost_price) return 0
   return Math.round((product.value.sale_price - product.value.cost_price) / product.value.sale_price * 100)
 })
+const today = () => new Date().toISOString().slice(0, 10)
 
 async function load() {
   loading.value = true
@@ -135,6 +158,7 @@ async function load() {
     product.value = p.data
     allMaterials.value = m.data
     Object.assign(editForm, { name: p.data.name, category: p.data.category || '', sale_price: p.data.sale_price, stock_qty: p.data.stock_qty, description: p.data.description || '' })
+    Object.assign(restockForm, { qty: '', produced_at: today() })
   } finally { loading.value = false }
 }
 
@@ -142,6 +166,20 @@ async function saveEdit() {
   await productsApi.update(route.params.id, editForm)
   showEdit.value = false
   await load()
+}
+
+async function restock() {
+  if (!restockForm.qty || restockForm.qty < 1) {
+    restockError.value = 'Укажите количество'
+    return
+  }
+  restocking.value = true
+  restockError.value = ''
+  try {
+    await productsApi.restock(route.params.id, restockForm)
+    await load()
+  } catch (e) { restockError.value = e.message }
+  finally { restocking.value = false }
 }
 
 async function addMaterial() {
@@ -185,3 +223,21 @@ async function removePhoto() {
 
 onMounted(load)
 </script>
+
+<style scoped>
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  gap: 24px;
+  align-items: start;
+}
+
+.section-title { font-weight: 600; margin-bottom: 12px; }
+.restock-current { color: var(--text-muted); margin-bottom: 20px; }
+.restock-current strong { color: var(--text); }
+.restock-card .btn { width: 100%; }
+
+@media (max-width: 900px) {
+  .detail-grid { grid-template-columns: 1fr; }
+}
+</style>
