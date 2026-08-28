@@ -6,11 +6,11 @@
     </div>
 
     <div class="filters">
-      <div class="form-group"><label>С</label><input v-model="dateFrom" type="date" @change="load" /></div>
-      <div class="form-group"><label>По</label><input v-model="dateTo" type="date" @change="load" /></div>
+      <div class="form-group"><label>С</label><input v-model="dateFrom" type="date" @change="changePage(1)" /></div>
+      <div class="form-group"><label>По</label><input v-model="dateTo" type="date" @change="changePage(1)" /></div>
       <div class="form-group">
         <label>Канал</label>
-        <select v-model="channelFilter" @change="load">
+        <select v-model="channelFilter" @change="changePage(1)">
           <option value="">Все</option>
           <option v-for="c in channels" :key="c.id" :value="c.id">{{ c.name }}</option>
         </select>
@@ -22,7 +22,7 @@
       <div v-else-if="!sales.length" class="empty"><div class="icon">💰</div>Продаж пока нет</div>
       <div v-else class="table-wrap">
         <table>
-          <thead><tr><th>Дата</th><th>Канал</th><th>Изделие</th><th>Кол-во</th><th>Цена</th><th>Сумма</th><th>Заметки</th></tr></thead>
+          <thead><tr><th>Дата</th><th>Изделие</th><th>Кол-во</th><th>Цена</th><th>Сумма</th><th>Заметки</th><th>Канал</th></tr></thead>
           <tbody>
             <template v-for="s in sales" :key="s.id">
               <tr
@@ -33,16 +33,22 @@
                 @click="viewSale(s.id)"
               >
                 <td>{{ fmtDate(s.sale_date) }}</td>
-                <td>{{ channelName(s.channel_id) || '—' }}</td>
                 <td>{{ item.product_name || '—' }}</td>
                 <td>{{ item.quantity }}</td>
                 <td>{{ item.price }} {{ cur }}</td>
                 <td><strong>{{ (item.quantity * item.price).toFixed(2) }} {{ cur }}</strong></td>
                 <td style="color:var(--text-muted)">{{ s.notes || '—' }}</td>
+                <td>{{ channelName(s.channel_id) || '—' }}</td>
               </tr>
             </template>
           </tbody>
         </table>
+      </div>
+
+      <div v-if="meta.pages > 1" class="pagination">
+        <button class="btn btn-secondary btn-sm" :disabled="meta.page <= 1" @click="changePage(meta.page - 1)">← Назад</button>
+        <span class="pagination-info">{{ meta.page }} / {{ meta.pages }}</span>
+        <button class="btn btn-secondary btn-sm" :disabled="meta.page >= meta.pages" @click="changePage(meta.page + 1)">Вперёд →</button>
       </div>
     </div>
 
@@ -135,6 +141,7 @@ const channelFilter = ref('')
 const showDetail = ref(false)
 const detailLoading = ref(false)
 const detail = ref(null)
+const meta = ref({ total: 0, page: 1, pages: 1, per_page: 20 })
 const form = reactive({ sale_date: new Date().toISOString().slice(0, 10), channel_id: '', notes: '', items: [] })
 
 // Products the picker offers when a channel with a fair-prep list is
@@ -202,14 +209,20 @@ function clearProduct(item) {
 async function load() {
   loading.value = true
   try {
-    const params = {}
+    const params = { page: meta.value.page, per_page: meta.value.per_page }
     if (dateFrom.value) params.date_from = dateFrom.value
     if (dateTo.value) params.date_to = dateTo.value
     if (channelFilter.value) params.channel_id = channelFilter.value
     const [s, ch] = await Promise.all([salesApi.list(params), channelsApi.list()])
     sales.value = s.data
+    meta.value = { ...meta.value, ...s.meta }
     channels.value = ch.data
   } finally { loading.value = false }
+}
+
+function changePage(page) {
+  meta.value.page = page
+  load()
 }
 
 function openCreate() {

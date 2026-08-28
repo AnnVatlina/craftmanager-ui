@@ -298,3 +298,72 @@ describe('SalesView — per-item rows and sale detail view', () => {
     wrapper.unmount()
   })
 })
+
+describe('SalesView — pagination', () => {
+  const saleOn = (day) => ({
+    id: 's-' + day, channel_id: null, sale_date: day, total_amount: '10.00', notes: '',
+    items: [{ id: 'i-' + day, product_id: 'p1', product_name: 'Мишка', quantity: 1, price: '10.00' }],
+  })
+
+  async function flush() {
+    for (let i = 0; i < 5; i++) await Promise.resolve()
+  }
+
+  beforeEach(() => {
+    channelsApi.list.mockReset().mockResolvedValue({ data: [] })
+  })
+
+  it('hides pagination controls when there is only one page', async () => {
+    salesApi.list.mockReset().mockResolvedValue({
+      data: [saleOn('2024-01-01')],
+      meta: { total: 1, page: 1, per_page: 20, pages: 1 },
+    })
+    const wrapper = mount(SalesView, { attachTo: document.body })
+    await flush()
+
+    expect(wrapper.find('.pagination').exists()).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('shows pagination controls and requests the next page on click', async () => {
+    salesApi.list.mockReset().mockImplementation((params) => Promise.resolve({
+      data: [saleOn('2024-01-02')],
+      meta: { total: 21, page: params.page, per_page: 20, pages: 2 },
+    }))
+    const wrapper = mount(SalesView, { attachTo: document.body })
+    await flush()
+
+    expect(wrapper.find('.pagination').exists()).toBe(true)
+    expect(wrapper.find('.pagination-info').text()).toBe('1 / 2')
+    expect(wrapper.find('.pagination button').attributes('disabled')).toBeDefined() // "← Назад" on page 1
+
+    await wrapper.findAll('.pagination button')[1].trigger('click') // "Вперёд →"
+    await flush()
+
+    expect(salesApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, per_page: 20 }))
+    expect(wrapper.find('.pagination-info').text()).toBe('2 / 2')
+
+    wrapper.unmount()
+  })
+
+  it('resets to page 1 when a filter changes', async () => {
+    salesApi.list.mockReset().mockImplementation((params) => Promise.resolve({
+      data: [saleOn('2024-01-03')],
+      meta: { total: 21, page: params.page, per_page: 20, pages: 2 },
+    }))
+    channelsApi.list.mockResolvedValue({ data: [{ id: 'c1', name: 'Инстаграм' }] })
+    const wrapper = mount(SalesView, { attachTo: document.body })
+    await flush()
+    await wrapper.findAll('.pagination button')[1].trigger('click') // go to page 2
+    await flush()
+    expect(salesApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }))
+
+    await wrapper.find('.filters select').setValue('c1')
+    await flush()
+
+    expect(salesApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, channel_id: 'c1' }))
+
+    wrapper.unmount()
+  })
+})
