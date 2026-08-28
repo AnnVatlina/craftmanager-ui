@@ -22,15 +22,25 @@
       <div v-else-if="!sales.length" class="empty"><div class="icon">💰</div>Продаж пока нет</div>
       <div v-else class="table-wrap">
         <table>
-          <thead><tr><th>Дата</th><th>Канал</th><th>Сумма</th><th>Заметки</th><th></th></tr></thead>
+          <thead><tr><th>Дата</th><th>Канал</th><th>Изделие</th><th>Кол-во</th><th>Цена</th><th>Сумма</th><th>Заметки</th></tr></thead>
           <tbody>
-            <tr v-for="s in sales" :key="s.id" class="sale-row" @click="viewSale(s.id)">
-              <td>{{ fmtDate(s.sale_date) }}</td>
-              <td>{{ channelName(s.channel_id) || '—' }}</td>
-              <td><strong>{{ s.total_amount }} {{ cur }}</strong></td>
-              <td style="color:var(--text-muted)">{{ s.notes || '—' }}</td>
-              <td><button class="btn-icon" @click.stop="deleteSale(s.id)">🗑</button></td>
-            </tr>
+            <template v-for="s in sales" :key="s.id">
+              <tr
+                v-for="(item, idx) in s.items"
+                :key="item.id"
+                class="sale-row"
+                :class="{ 'sale-group-end': idx === s.items.length - 1 }"
+                @click="viewSale(s.id)"
+              >
+                <td>{{ fmtDate(s.sale_date) }}</td>
+                <td>{{ channelName(s.channel_id) || '—' }}</td>
+                <td>{{ item.product_name || '—' }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>{{ item.price }} {{ cur }}</td>
+                <td><strong>{{ (item.quantity * item.price).toFixed(2) }} {{ cur }}</strong></td>
+                <td style="color:var(--text-muted)">{{ s.notes || '—' }}</td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>
@@ -97,6 +107,7 @@
         <div class="sale-total" style="margin-top:8px">Итого: {{ detail.total_amount }} {{ cur }}</div>
       </div>
       <template #footer>
+        <button v-if="detail" class="btn-icon" style="color:var(--danger)" @click="deleteSale(detail.id)" title="Удалить продажу">🗑 Удалить</button>
         <button class="btn btn-secondary" @click="showDetail = false">Закрыть</button>
       </template>
     </BaseModal>
@@ -240,6 +251,7 @@ async function viewSale(id) {
 async function deleteSale(id) {
   if (!confirm('Удалить продажу? Остатки товаров будут восстановлены.')) return
   await salesApi.delete(id)
+  showDetail.value = false
   await load()
 }
 
@@ -248,6 +260,7 @@ onMounted(load)
 
 <style scoped>
 .sale-row { cursor: pointer; }
+.sale-group-end td { border-bottom: 2px solid var(--border); }
 .item-product-chosen {
   display: flex; align-items: center; gap: 6px; min-width: 0;
   padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;

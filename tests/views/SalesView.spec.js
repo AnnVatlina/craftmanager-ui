@@ -193,15 +193,14 @@ describe('SalesView — ProductPicker integration', () => {
   })
 })
 
-describe('SalesView — sale detail view', () => {
-  const SALE = { id: 's1', channel_id: 'c1', sale_date: '2024-01-15', total_amount: '100.00', notes: 'Заметка' }
-  const DETAIL = {
-    ...SALE,
-    channel_name: 'Инстаграм',
+describe('SalesView — per-item rows and sale detail view', () => {
+  const SALE = {
+    id: 's1', channel_id: 'c1', sale_date: '2024-01-15', total_amount: '100.00', notes: 'Заметка',
     items: [
       { id: 'i1', product_id: 'p1', product_name: 'Плюшевый мишка', quantity: 2, price: '50.00' },
     ],
   }
+  const DETAIL = { ...SALE, channel_name: 'Инстаграм' }
 
   beforeEach(() => {
     salesApi.list.mockReset().mockResolvedValue({ data: [SALE] })
@@ -230,16 +229,70 @@ describe('SalesView — sale detail view', () => {
     wrapper.unmount()
   })
 
-  it('clicking delete does not also open the detail modal', async () => {
+  it('renders one row per item, repeating date/channel/notes, without a per-row delete button', async () => {
+    const multiSale = {
+      id: 's2', channel_id: 'c1', sale_date: '2024-02-01', total_amount: '70.00', notes: 'Ярмарка',
+      items: [
+        { id: 'i1', product_id: 'p1', product_name: 'Мишка', quantity: 1, price: '30.00' },
+        { id: 'i2', product_id: 'p2', product_name: 'Зайка', quantity: 2, price: '20.00' },
+      ],
+    }
+    salesApi.list.mockResolvedValue({ data: [multiSale] })
+    const wrapper = mount(SalesView, { attachTo: document.body })
+    await flush()
+
+    const rows = wrapper.findAll('.sale-row')
+    expect(rows).toHaveLength(2)
+    expect(rows[0].text()).toContain('Мишка')
+    expect(rows[0].text()).toContain('30.00')
+    expect(rows[1].text()).toContain('Зайка')
+    expect(rows[1].text()).toContain('40.00') // quantity(2) * price(20.00), not the sale total
+
+    // Дата/Канал/Заметки repeat on every item row of the same sale.
+    rows.forEach((r) => {
+      expect(r.text()).toContain('Ярмарка')
+      expect(r.text()).toContain('Инстаграм')
+    })
+
+    // The whole-sale total must not leak into the flattened table.
+    expect(wrapper.find('.table-wrap').text()).not.toContain('70.00')
+    // Deleting a sale is only available from the detail modal now.
+    expect(wrapper.find('.sale-row button').exists()).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('deleting from the detail modal closes it and reloads the list', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const wrapper = mount(SalesView, { attachTo: document.body })
+    await flush()
+
+    await wrapper.find('.sale-row').trigger('click')
+    await flush()
+
+    await body().find('.modal button.btn-icon').trigger('click')
+    await flush()
+
+    expect(salesApi.delete).toHaveBeenCalledWith('s1')
+    expect(body().find('.modal').exists()).toBe(false)
+
+    confirmSpy.mockRestore()
+    wrapper.unmount()
+  })
+
+  it('declining the delete confirmation keeps the detail modal open', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const wrapper = mount(SalesView, { attachTo: document.body })
     await flush()
 
-    await wrapper.find('.sale-row button.btn-icon').trigger('click')
+    await wrapper.find('.sale-row').trigger('click')
     await flush()
 
-    expect(salesApi.get).not.toHaveBeenCalled()
-    expect(body().find('.modal').exists()).toBe(false)
+    await body().find('.modal button.btn-icon').trigger('click')
+    await flush()
+
+    expect(salesApi.delete).not.toHaveBeenCalled()
+    expect(body().find('.modal').exists()).toBe(true)
 
     confirmSpy.mockRestore()
     wrapper.unmount()
