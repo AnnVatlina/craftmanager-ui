@@ -42,6 +42,16 @@
               </tr>
             </template>
           </tbody>
+          <tfoot>
+            <tr class="totals-row">
+              <td colspan="2">{{ totalsLabel }}</td>
+              <td>{{ pageTotals.qty }}</td>
+              <td></td>
+              <td>{{ pageTotals.sum }} {{ cur }}</td>
+              <td></td>
+              <td></td>
+            </tr>
+          </tfoot>
         </table>
       </div>
 
@@ -156,6 +166,18 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString('ru-RU') : '—'
 const channelName = (id) => channels.value.find(c => c.id === id)?.name
 const cur = computed(() => settingsStore.currency)
 const saleTotal = computed(() => form.items.reduce((s, i) => s + (i.quantity * (i.price || 0)), 0).toFixed(2))
+const totalsLabel = computed(() => meta.value.pages > 1 ? 'Итого на странице' : 'Итого')
+const pageTotals = computed(() => {
+  let qty = 0
+  let sum = 0
+  for (const s of sales.value) {
+    for (const item of s.items) {
+      qty += item.quantity
+      sum += item.quantity * item.price
+    }
+  }
+  return { qty, sum: sum.toFixed(2) }
+})
 
 async function onChannelChange() {
   channelProducts.value = null
@@ -274,6 +296,7 @@ onMounted(load)
 <style scoped>
 .sale-row { cursor: pointer; }
 .sale-group-end td { border-bottom: 2px solid var(--border); }
+.totals-row td { border-top: 2px solid var(--border); border-bottom: none; font-weight: 600; color: var(--primary); }
 .item-product-chosen {
   display: flex; align-items: center; gap: 6px; min-width: 0;
   padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;

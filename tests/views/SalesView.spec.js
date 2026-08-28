@@ -254,8 +254,9 @@ describe('SalesView — per-item rows and sale detail view', () => {
       expect(r.text()).toContain('Инстаграм')
     })
 
-    // The whole-sale total must not leak into the flattened table.
-    expect(wrapper.find('.table-wrap').text()).not.toContain('70.00')
+    // The whole-sale total must not leak into the per-item rows themselves
+    // (the totals-row footer legitimately shows the same figure as a sum).
+    expect(wrapper.find('tbody').text()).not.toContain('70.00')
     // Deleting a sale is only available from the detail modal now.
     expect(wrapper.find('.sale-row button').exists()).toBe(false)
 
@@ -363,6 +364,63 @@ describe('SalesView — pagination', () => {
     await flush()
 
     expect(salesApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, channel_id: 'c1' }))
+
+    wrapper.unmount()
+  })
+})
+
+describe('SalesView — totals row', () => {
+  async function flush() {
+    for (let i = 0; i < 5; i++) await Promise.resolve()
+  }
+
+  beforeEach(() => {
+    channelsApi.list.mockReset().mockResolvedValue({ data: [] })
+  })
+
+  it('sums quantity and per-item amounts across all rows, labelled "Итого" on a single page', async () => {
+    salesApi.list.mockReset().mockResolvedValue({
+      data: [
+        {
+          id: 's1', channel_id: null, sale_date: '2024-01-01', notes: '',
+          items: [
+            { id: 'i1', product_id: 'p1', product_name: 'Мишка', quantity: 2, price: '30.00' },
+            { id: 'i2', product_id: 'p2', product_name: 'Зайка', quantity: 1, price: '20.00' },
+          ],
+        },
+        {
+          id: 's2', channel_id: null, sale_date: '2024-01-02', notes: '',
+          items: [{ id: 'i3', product_id: 'p3', product_name: 'Лиса', quantity: 3, price: '10.00' }],
+        },
+      ],
+      meta: { total: 2, page: 1, per_page: 20, pages: 1 },
+    })
+    const wrapper = mount(SalesView, { attachTo: document.body })
+    await flush()
+
+    const footer = wrapper.find('.totals-row')
+    expect(footer.text()).toContain('Итого')
+    expect(footer.text()).not.toContain('на странице')
+    // qty: 2 + 1 + 3 = 6; sum: 60.00 + 20.00 + 30.00 = 110.00
+    const cells = footer.findAll('td')
+    expect(cells[1].text()).toBe('6')
+    expect(cells[3].text()).toContain('110.00')
+
+    wrapper.unmount()
+  })
+
+  it('labels the totals row "Итого на странице" when there is more than one page', async () => {
+    salesApi.list.mockReset().mockResolvedValue({
+      data: [{
+        id: 's1', channel_id: null, sale_date: '2024-01-01', notes: '',
+        items: [{ id: 'i1', product_id: 'p1', product_name: 'Мишка', quantity: 1, price: '10.00' }],
+      }],
+      meta: { total: 21, page: 1, per_page: 20, pages: 2 },
+    })
+    const wrapper = mount(SalesView, { attachTo: document.body })
+    await flush()
+
+    expect(wrapper.find('.totals-row').text()).toContain('Итого на странице')
 
     wrapper.unmount()
   })
