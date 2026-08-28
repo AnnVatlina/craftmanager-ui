@@ -24,12 +24,12 @@
         <table>
           <thead><tr><th>Дата</th><th>Канал</th><th>Сумма</th><th>Заметки</th><th></th></tr></thead>
           <tbody>
-            <tr v-for="s in sales" :key="s.id">
+            <tr v-for="s in sales" :key="s.id" class="sale-row" @click="viewSale(s.id)">
               <td>{{ fmtDate(s.sale_date) }}</td>
               <td>{{ channelName(s.channel_id) || '—' }}</td>
               <td><strong>{{ s.total_amount }} {{ cur }}</strong></td>
               <td style="color:var(--text-muted)">{{ s.notes || '—' }}</td>
-              <td><button class="btn-icon" @click="deleteSale(s.id)">🗑</button></td>
+              <td><button class="btn-icon" @click.stop="deleteSale(s.id)">🗑</button></td>
             </tr>
           </tbody>
         </table>
@@ -70,6 +70,36 @@
         <button class="btn btn-primary" @click="save" :disabled="saving">{{ saving ? '...' : 'Создать' }}</button>
       </template>
     </BaseModal>
+
+    <BaseModal v-if="showDetail" title="Продажа" @close="showDetail = false">
+      <div v-if="detailLoading" class="loading">Загрузка...</div>
+      <div v-else-if="detail">
+        <div class="form-row">
+          <div><strong>Дата:</strong> {{ fmtDate(detail.sale_date) }}</div>
+          <div><strong>Канал:</strong> {{ detail.channel_name || '—' }}</div>
+        </div>
+        <div v-if="detail.notes" style="margin-top:8px"><strong>Заметки:</strong> {{ detail.notes }}</div>
+
+        <div style="font-weight:600;margin:12px 0 8px">Позиции</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Изделие</th><th>Кол-во</th><th>Цена</th><th>Сумма</th></tr></thead>
+            <tbody>
+              <tr v-for="item in detail.items" :key="item.id">
+                <td>{{ item.product_name || '—' }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>{{ item.price }} {{ cur }}</td>
+                <td>{{ (item.quantity * item.price).toFixed(2) }} {{ cur }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="sale-total" style="margin-top:8px">Итого: {{ detail.total_amount }} {{ cur }}</div>
+      </div>
+      <template #footer>
+        <button class="btn btn-secondary" @click="showDetail = false">Закрыть</button>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
@@ -91,6 +121,9 @@ const error = ref('')
 const dateFrom = ref('')
 const dateTo = ref('')
 const channelFilter = ref('')
+const showDetail = ref(false)
+const detailLoading = ref(false)
+const detail = ref(null)
 const form = reactive({ sale_date: new Date().toISOString().slice(0, 10), channel_id: '', notes: '', items: [] })
 
 // Products the picker offers when a channel with a fair-prep list is
@@ -192,6 +225,18 @@ async function save() {
   finally { saving.value = false }
 }
 
+async function viewSale(id) {
+  showDetail.value = true
+  detailLoading.value = true
+  detail.value = null
+  try {
+    const res = await salesApi.get(id)
+    detail.value = res.data
+  } finally {
+    detailLoading.value = false
+  }
+}
+
 async function deleteSale(id) {
   if (!confirm('Удалить продажу? Остатки товаров будут восстановлены.')) return
   await salesApi.delete(id)
@@ -202,6 +247,7 @@ onMounted(load)
 </script>
 
 <style scoped>
+.sale-row { cursor: pointer; }
 .item-product-chosen {
   display: flex; align-items: center; gap: 6px; min-width: 0;
   padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;

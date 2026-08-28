@@ -6,7 +6,7 @@ import { channelsApi } from '../../src/api/channels.js'
 import { productsApi } from '../../src/api/products.js'
 import { fairPrepApi } from '../../src/api/fairPrep.js'
 
-vi.mock('../../src/api/sales.js', () => ({ salesApi: { list: vi.fn(), create: vi.fn() } }))
+vi.mock('../../src/api/sales.js', () => ({ salesApi: { list: vi.fn(), create: vi.fn(), get: vi.fn(), delete: vi.fn() } }))
 vi.mock('../../src/api/channels.js', () => ({ channelsApi: { list: vi.fn() } }))
 vi.mock('../../src/api/products.js', () => ({ productsApi: { list: vi.fn() } }))
 vi.mock('../../src/api/fairPrep.js', () => ({
@@ -189,6 +189,59 @@ describe('SalesView — ProductPicker integration', () => {
 
     expect(body().find('.modal select').element.value).toBe('c1')
 
+    wrapper.unmount()
+  })
+})
+
+describe('SalesView — sale detail view', () => {
+  const SALE = { id: 's1', channel_id: 'c1', sale_date: '2024-01-15', total_amount: '100.00', notes: 'Заметка' }
+  const DETAIL = {
+    ...SALE,
+    channel_name: 'Инстаграм',
+    items: [
+      { id: 'i1', product_id: 'p1', product_name: 'Плюшевый мишка', quantity: 2, price: '50.00' },
+    ],
+  }
+
+  beforeEach(() => {
+    salesApi.list.mockReset().mockResolvedValue({ data: [SALE] })
+    salesApi.get.mockReset().mockResolvedValue({ data: DETAIL })
+    salesApi.delete.mockReset().mockResolvedValue({})
+    channelsApi.list.mockReset().mockResolvedValue({ data: [{ id: 'c1', name: 'Инстаграм' }] })
+  })
+
+  async function flush() {
+    for (let i = 0; i < 5; i++) await Promise.resolve()
+  }
+
+  it('clicking a sale row fetches and shows its details', async () => {
+    const wrapper = mount(SalesView, { attachTo: document.body })
+    await flush()
+
+    await wrapper.find('.sale-row').trigger('click')
+    await flush()
+
+    expect(salesApi.get).toHaveBeenCalledWith('s1')
+    const modalText = body().find('.modal').text()
+    expect(modalText).toContain('Плюшевый мишка')
+    expect(modalText).toContain('Инстаграм')
+    expect(modalText).toContain('Заметка')
+
+    wrapper.unmount()
+  })
+
+  it('clicking delete does not also open the detail modal', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const wrapper = mount(SalesView, { attachTo: document.body })
+    await flush()
+
+    await wrapper.find('.sale-row button.btn-icon').trigger('click')
+    await flush()
+
+    expect(salesApi.get).not.toHaveBeenCalled()
+    expect(body().find('.modal').exists()).toBe(false)
+
+    confirmSpy.mockRestore()
     wrapper.unmount()
   })
 })
