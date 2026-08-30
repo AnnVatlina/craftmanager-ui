@@ -92,8 +92,9 @@
                     <span v-if="item.need_to_make > 0" class="badge badge-danger">{{ item.need_to_make }}</span>
                     <span v-else class="badge badge-success">—</span>
                   </td>
-                  <td v-if="sellForm[item.id]">
-                    <div class="sell-group">
+                  <td style="text-align:center">
+                    <span v-if="soldProductIds.has(item.product_id)" class="badge badge-success">✓ Продано</span>
+                    <div v-else-if="sellForm[item.id]" class="sell-group">
                       <input class="qty-input" type="number" min="1" v-model.number="sellForm[item.id].qty" title="Количество" />
                       <input class="qty-input" type="number" step="0.01" v-model.number="sellForm[item.id].price" title="Цена продажи" />
                       <button class="btn btn-primary btn-sm" :disabled="sellingId === item.id" @click="sell(item)">
@@ -169,6 +170,10 @@ const sortBy = ref('name')
 const sellForm = reactive({})
 const sellingId = ref(null)
 const sellError = ref('')
+// product_ids already sold on this fair's channel — derived from actual
+// sales (not just quick-sells made this session), so it survives reloads
+// and also picks up sales entered the regular way via "+ Новая продажа".
+const soldProductIds = ref(new Set())
 
 const cur = computed(() => settingsStore.currency)
 const categories = computed(() => settingsStore.categories)
@@ -195,12 +200,35 @@ function syncSellForm() {
   }
 }
 
+// Walks every page of GET /sales for this channel and collects the
+// product_ids that already appear in some sale — a fair rarely has more
+// than one page of sales, but this stays correct if it ever does.
+async function fetchSoldProductIds(channelId) {
+  const ids = new Set()
+  let page = 1
+  while (true) {
+    const res = await salesApi.list({ channel_id: channelId, page, per_page: 100 })
+    for (const sale of res.data) {
+      for (const item of sale.items) {
+        if (item.product_id) ids.add(item.product_id)
+      }
+    }
+    if (!res.meta || page >= res.meta.pages) break
+    page++
+  }
+  return ids
+}
+
 async function reload() {
   if (!selectedChannelId.value) return
   loading.value = true
   try {
-    const res = await fairPrepApi.getPrep(selectedChannelId.value, activeFilters.value)
-    prep.value = res.data
+    const [prepRes, soldIds] = await Promise.all([
+      fairPrepApi.getPrep(selectedChannelId.value, activeFilters.value),
+      fetchSoldProductIds(selectedChannelId.value),
+    ])
+    prep.value = prepRes.data
+    soldProductIds.value = soldIds
     syncSellForm()
   } finally { loading.value = false }
 }
