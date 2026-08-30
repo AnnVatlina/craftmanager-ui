@@ -367,6 +367,45 @@ describe('SalesView — pagination', () => {
 
     wrapper.unmount()
   })
+
+  it('requests all sales unpaginated and hides pagination controls when a channel is selected', async () => {
+    salesApi.list.mockReset().mockImplementation((params) => Promise.resolve({
+      data: [saleOn('2024-01-04')],
+      meta: { total: 21, page: params.page, per_page: params.per_page, pages: params.per_page >= 21 ? 1 : 2 },
+    }))
+    channelsApi.list.mockResolvedValue({ data: [{ id: 'c1', name: 'Инстаграм' }] })
+    const wrapper = mount(SalesView, { attachTo: document.body })
+    await flush()
+    expect(wrapper.find('.pagination').exists()).toBe(true) // "Все" still paginates
+
+    await wrapper.find('.filters select').setValue('c1')
+    await flush()
+
+    expect(salesApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, per_page: 1000, channel_id: 'c1' }))
+    expect(wrapper.find('.pagination').exists()).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('restores normal per_page after switching back to "Все" from a selected channel', async () => {
+    salesApi.list.mockReset().mockImplementation((params) => Promise.resolve({
+      data: [saleOn('2024-01-05')],
+      meta: { total: 21, page: params.page, per_page: params.per_page, pages: params.per_page >= 21 ? 1 : 2 },
+    }))
+    channelsApi.list.mockResolvedValue({ data: [{ id: 'c1', name: 'Инстаграм' }] })
+    const wrapper = mount(SalesView, { attachTo: document.body })
+    await flush()
+
+    await wrapper.find('.filters select').setValue('c1')
+    await flush()
+    await wrapper.find('.filters select').setValue('')
+    await flush()
+
+    expect(salesApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, per_page: 20 }))
+    expect(wrapper.find('.pagination').exists()).toBe(true)
+
+    wrapper.unmount()
+  })
 })
 
 describe('SalesView — totals row', () => {

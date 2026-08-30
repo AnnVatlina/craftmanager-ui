@@ -55,7 +55,7 @@
         </table>
       </div>
 
-      <div v-if="meta.pages > 1" class="pagination">
+      <div v-if="meta.pages > 1 && !channelFilter" class="pagination">
         <button class="btn btn-secondary btn-sm" :disabled="meta.page <= 1" @click="changePage(meta.page - 1)">← Назад</button>
         <span class="pagination-info">{{ meta.page }} / {{ meta.pages }}</span>
         <button class="btn btn-secondary btn-sm" :disabled="meta.page >= meta.pages" @click="changePage(meta.page + 1)">Вперёд →</button>
@@ -228,10 +228,22 @@ function clearProduct(item) {
   item.product_name = ''
 }
 
+// A specific channel's sales are shown in full, unpaginated — a single
+// channel realistically never has anywhere near this many sales, so it's
+// effectively "no limit" without needing backend support for one. Using
+// fixed constants here (rather than meta.value.per_page) avoids the size
+// used for one mode leaking into the other once meta is overwritten by
+// the server's echoed-back per_page.
+const DEFAULT_PER_PAGE = 20
+const NO_PAGINATION_PER_PAGE = 1000
+
 async function load() {
   loading.value = true
   try {
-    const params = { page: meta.value.page, per_page: meta.value.per_page }
+    const params = {
+      page: channelFilter.value ? 1 : meta.value.page,
+      per_page: channelFilter.value ? NO_PAGINATION_PER_PAGE : DEFAULT_PER_PAGE,
+    }
     if (dateFrom.value) params.date_from = dateFrom.value
     if (dateTo.value) params.date_to = dateTo.value
     if (channelFilter.value) params.channel_id = channelFilter.value
