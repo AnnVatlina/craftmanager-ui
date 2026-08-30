@@ -50,6 +50,8 @@
           <span v-else style="color:var(--success)">Всё есть на складе ✓</span>
         </div>
 
+        <div v-if="sellError" class="alert alert-error" style="margin-bottom:12px">{{ sellError }}</div>
+
         <div class="card">
           <div class="table-wrap">
             <table>
@@ -61,6 +63,7 @@
                   <th style="text-align:center">Взять</th>
                   <th style="text-align:center">На складе</th>
                   <th style="text-align:center">Довязать</th>
+                  <th style="text-align:center">Продажа</th>
                   <th></th>
                 </tr>
               </thead>
@@ -89,6 +92,15 @@
                     <span v-if="item.need_to_make > 0" class="badge badge-danger">{{ item.need_to_make }}</span>
                     <span v-else class="badge badge-success">—</span>
                   </td>
+                  <td v-if="sellForm[item.id]">
+                    <div class="sell-group">
+                      <input class="qty-input" type="number" min="1" v-model.number="sellForm[item.id].qty" title="Количество" />
+                      <input class="qty-input" type="number" step="0.01" v-model.number="sellForm[item.id].price" title="Цена продажи" />
+                      <button class="btn btn-primary btn-sm" :disabled="sellingId === item.id" @click="sell(item)">
+                        {{ sellingId === item.id ? '...' : 'Продать' }}
+                      </button>
+                    </div>
+                  </td>
                   <td>
                     <button class="btn-icon" @click="removeItem(item.id)">🗑</button>
                   </td>
@@ -111,6 +123,7 @@
                     <input class="qty-input" type="number" min="1" v-model.number="newQty" />
                   </td>
                   <td colspan="2"></td>
+                  <td></td>
                   <td>
                     <button class="btn btn-primary btn-sm" :disabled="!newProduct || adding" @click="addItem">
                       {{ adding ? '...' : '+ Добавить' }}
@@ -134,8 +147,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { fairPrepApi } from '../api/fairPrep.js'
+import { salesApi } from '../api/sales.js'
 import { settingsStore } from '../stores/settings.js'
 import ProductPicker from '../components/ProductPicker.vue'
 
@@ -149,10 +163,18 @@ const newQty = ref(1)
 const filterCategory = ref('')
 const sortBy = ref('name')
 
+// Quick "Продать" inline form per item.id — keyed separately from `prep`
+// (rather than stored on the item itself) so a filter/sort reload doesn't
+// wipe an in-progress qty/price the user hasn't submitted yet.
+const sellForm = reactive({})
+const sellingId = ref(null)
+const sellError = ref('')
+
 const cur = computed(() => settingsStore.currency)
 const categories = computed(() => settingsStore.categories)
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('ru-RU') : ''
 const fmt = (v) => Number(v || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const today = () => new Date().toISOString().slice(0, 10)
 
 const activeFilters = computed(() => {
   const f = { sort_by: sortBy.value }
@@ -164,12 +186,22 @@ const activeFilters = computed(() => {
 // duplicates anyway, but this way they're never even offered again).
 const usedProductIds = computed(() => prep.value ? prep.value.items.map(i => i.product_id) : [])
 
+// Adds a default { qty: 1, price: sale_price } sell-form entry for any item
+// that doesn't have one yet — leaves existing entries (with whatever the
+// user already typed) untouched.
+function syncSellForm() {
+  for (const item of prep.value.items) {
+    if (!sellForm[item.id]) sellForm[item.id] = { qty: 1, price: item.sale_price }
+  }
+}
+
 async function reload() {
   if (!selectedChannelId.value) return
   loading.value = true
   try {
     const res = await fairPrepApi.getPrep(selectedChannelId.value, activeFilters.value)
     prep.value = res.data
+    syncSellForm()
   } finally { loading.value = false }
 }
 
@@ -190,9 +222,30 @@ async function addItem() {
       activeFilters.value,
     )
     prep.value = res.data
+    syncSellForm()
     newProduct.value = null
     newQty.value = 1
   } finally { adding.value = false }
+}
+
+async function sell(item) {
+  const state = sellForm[item.id]
+  if (!state.qty || state.qty < 1 || !state.price) return
+  sellingId.value = item.id
+  sellError.value = ''
+  try {
+    await salesApi.create({
+      channel_id: selectedChannelId.value,
+      sale_date: prep.value.channel.event_date || today(),
+      items: [{ product_id: item.product_id, quantity: state.qty, price: state.price }],
+    })
+    delete sellForm[item.id]
+    await reload()
+  } catch (e) {
+    sellError.value = e.message
+  } finally {
+    sellingId.value = null
+  }
 }
 
 async function updateQty(item, val) {
@@ -267,3 +320,8 @@ onMounted(async () => {
   channels.value = ch.data
 })
 </script>
+
+<style scoped>
+.sell-group { display: flex; align-items: center; gap: 4px; justify-content: center; }
+.sell-group .qty-input { width: 52px; }
+</style>
