@@ -50,8 +50,6 @@
           <span v-else style="color:var(--success)">Всё есть на складе ✓</span>
         </div>
 
-        <div v-if="sellError" class="alert alert-error" style="margin-bottom:12px">{{ sellError }}</div>
-
         <div class="card">
           <div class="table-wrap">
             <table>
@@ -94,13 +92,7 @@
                   </td>
                   <td style="text-align:center">
                     <span v-if="soldProductIds.has(item.product_id)" class="badge badge-success">✓ Продано</span>
-                    <div v-else-if="sellForm[item.id]" class="sell-group">
-                      <input class="qty-input" type="number" min="1" v-model.number="sellForm[item.id].qty" title="Количество" />
-                      <input class="qty-input" type="number" step="0.01" v-model.number="sellForm[item.id].price" title="Цена продажи" />
-                      <button class="btn btn-primary btn-sm" :disabled="sellingId === item.id" @click="sell(item)">
-                        {{ sellingId === item.id ? '...' : 'Продать' }}
-                      </button>
-                    </div>
+                    <button v-else class="btn btn-primary btn-sm sell-btn" @click="openSell(item)">Продать</button>
                   </td>
                   <td>
                     <button class="btn-icon" @click="removeItem(item.id)">🗑</button>
@@ -144,6 +136,23 @@
         Нет ярмарок. Добавьте канал с типом «Ярмарка» в разделе «Каналы продаж».
       </div>
     </div>
+
+    <BaseModal v-if="sellItem" title="Продажа" @close="sellItem = null">
+      <div v-if="sellError" class="alert alert-error">{{ sellError }}</div>
+      <p style="font-weight:600">{{ sellItem.product_name }}</p>
+      <p style="color:var(--text-muted);margin-bottom:12px">
+        {{ fmtDate(sellForm.sale_date) }} · {{ prep.channel.name }}
+      </p>
+      <div class="form-row">
+        <div class="form-group"><label>Количество</label><input type="number" min="1" v-model.number="sellForm.qty" /></div>
+        <div class="form-group"><label>Цена</label><input type="number" step="0.01" v-model.number="sellForm.price" /></div>
+      </div>
+      <div class="sale-total" style="margin-top:8px">Итого: {{ sellTotal }} {{ cur }}</div>
+      <template #footer>
+        <button class="btn btn-secondary" @click="sellItem = null">Отмена</button>
+        <button class="btn btn-primary" :disabled="selling" @click="confirmSell">{{ selling ? '...' : 'Продать' }}</button>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
@@ -153,6 +162,7 @@ import { fairPrepApi } from '../api/fairPrep.js'
 import { salesApi } from '../api/sales.js'
 import { settingsStore } from '../stores/settings.js'
 import ProductPicker from '../components/ProductPicker.vue'
+import BaseModal from '../components/BaseModal.vue'
 
 const channels = ref([])
 const selectedChannelId = ref('')
@@ -164,11 +174,11 @@ const newQty = ref(1)
 const filterCategory = ref('')
 const sortBy = ref('name')
 
-// Quick "Продать" inline form per item.id — keyed separately from `prep`
-// (rather than stored on the item itself) so a filter/sort reload doesn't
-// wipe an in-progress qty/price the user hasn't submitted yet.
-const sellForm = reactive({})
-const sellingId = ref(null)
+// Quick "Продать" popup — sellItem is the fair item currently being sold
+// (null when the modal is closed), prefilled into the single shared form.
+const sellItem = ref(null)
+const sellForm = reactive({ qty: 1, price: '', sale_date: '' })
+const selling = ref(false)
 const sellError = ref('')
 // product_ids already sold on this fair's channel — derived from actual
 // sales (not just quick-sells made this session), so it survives reloads
@@ -180,6 +190,7 @@ const categories = computed(() => settingsStore.categories)
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('ru-RU') : ''
 const fmt = (v) => Number(v || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const today = () => new Date().toISOString().slice(0, 10)
+const sellTotal = computed(() => ((sellForm.qty || 0) * (sellForm.price || 0)).toFixed(2))
 
 const activeFilters = computed(() => {
   const f = { sort_by: sortBy.value }
@@ -190,15 +201,6 @@ const activeFilters = computed(() => {
 // Products already on the list are excluded from the picker (server rejects
 // duplicates anyway, but this way they're never even offered again).
 const usedProductIds = computed(() => prep.value ? prep.value.items.map(i => i.product_id) : [])
-
-// Adds a default { qty: 1, price: sale_price } sell-form entry for any item
-// that doesn't have one yet — leaves existing entries (with whatever the
-// user already typed) untouched.
-function syncSellForm() {
-  for (const item of prep.value.items) {
-    if (!sellForm[item.id]) sellForm[item.id] = { qty: 1, price: item.sale_price }
-  }
-}
 
 // Walks every page of GET /sales for this channel and collects the
 // product_ids that already appear in some sale — a fair rarely has more
@@ -229,7 +231,6 @@ async function reload() {
     ])
     prep.value = prepRes.data
     soldProductIds.value = soldIds
-    syncSellForm()
   } finally { loading.value = false }
 }
 
@@ -250,29 +251,35 @@ async function addItem() {
       activeFilters.value,
     )
     prep.value = res.data
-    syncSellForm()
     newProduct.value = null
     newQty.value = 1
   } finally { adding.value = false }
 }
 
-async function sell(item) {
-  const state = sellForm[item.id]
-  if (!state.qty || state.qty < 1 || !state.price) return
-  sellingId.value = item.id
+function openSell(item) {
+  sellItem.value = item
+  sellForm.qty = 1
+  sellForm.price = item.sale_price
+  sellForm.sale_date = prep.value.channel.event_date || today()
+  sellError.value = ''
+}
+
+async function confirmSell() {
+  if (!sellForm.qty || sellForm.qty < 1 || !sellForm.price) return
+  selling.value = true
   sellError.value = ''
   try {
     await salesApi.create({
       channel_id: selectedChannelId.value,
-      sale_date: prep.value.channel.event_date || today(),
-      items: [{ product_id: item.product_id, quantity: state.qty, price: state.price }],
+      sale_date: sellForm.sale_date,
+      items: [{ product_id: sellItem.value.product_id, quantity: sellForm.qty, price: sellForm.price }],
     })
-    delete sellForm[item.id]
+    sellItem.value = null
     await reload()
   } catch (e) {
     sellError.value = e.message
   } finally {
-    sellingId.value = null
+    selling.value = false
   }
 }
 
@@ -348,8 +355,3 @@ onMounted(async () => {
   channels.value = ch.data
 })
 </script>
-
-<style scoped>
-.sell-group { display: flex; align-items: center; gap: 4px; justify-content: center; }
-.sell-group .qty-input { width: 52px; }
-</style>

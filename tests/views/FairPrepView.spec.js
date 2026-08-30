@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, DOMWrapper } from '@vue/test-utils'
 import FairPrepView from '../../src/views/FairPrepView.vue'
 import { fairPrepApi } from '../../src/api/fairPrep.js'
 import { salesApi } from '../../src/api/sales.js'
@@ -9,6 +9,11 @@ vi.mock('../../src/api/fairPrep.js', () => ({
 }))
 vi.mock('../../src/api/sales.js', () => ({ salesApi: { create: vi.fn(), list: vi.fn() } }))
 vi.mock('../../src/api/products.js', () => ({ productsApi: { list: vi.fn().mockResolvedValue({ data: [] }) } }))
+
+// BaseModal teleports to <body>, escaping the mounted wrapper's own DOM tree.
+function body() {
+  return new DOMWrapper(document.body)
+}
 
 async function flush() {
   for (let i = 0; i < 5; i++) await Promise.resolve()
@@ -31,7 +36,12 @@ async function selectChannel(wrapper) {
   await flush()
 }
 
-describe('FairPrepView — quick "Продать"', () => {
+async function openSellPopup(wrapper) {
+  await wrapper.find('td button.sell-btn').trigger('click')
+  await flush()
+}
+
+describe('FairPrepView — quick "Продать" popup', () => {
   beforeEach(() => {
     fairPrepApi.listChannels.mockReset().mockResolvedValue({ data: [CHANNEL] })
     fairPrepApi.getPrep.mockReset().mockResolvedValue({ data: prepWith('2024-06-15') })
@@ -39,25 +49,30 @@ describe('FairPrepView — quick "Продать"', () => {
     salesApi.list.mockReset().mockResolvedValue({ data: [], meta: { total: 0, page: 1, per_page: 100, pages: 1 } })
   })
 
-  it('prefills quantity 1 and the product\'s current sale price', async () => {
-    const wrapper = mount(FairPrepView)
+  it('opens prefilled with quantity 1, the current sale price, and the fair\'s date', async () => {
+    const wrapper = mount(FairPrepView, { attachTo: document.body })
     await flush()
     await selectChannel(wrapper)
+    await openSellPopup(wrapper)
 
-    const inputs = wrapper.find('.sell-group').findAll('input')
+    const modal = body().find('.modal')
+    expect(modal.text()).toContain('Мишка')
+    expect(modal.text()).toContain('Летняя ярмарка')
+    const inputs = modal.findAll('input')
     expect(inputs[0].element.value).toBe('1')
     expect(inputs[1].element.value).toBe('25.00')
 
     wrapper.unmount()
   })
 
-  it('creates a one-item sale dated on the fair\'s event_date, then reloads the list', async () => {
+  it('creates a one-item sale dated on the fair\'s event_date, then reloads and closes', async () => {
     salesApi.create.mockResolvedValue({ data: {} })
-    const wrapper = mount(FairPrepView)
+    const wrapper = mount(FairPrepView, { attachTo: document.body })
     await flush()
     await selectChannel(wrapper)
+    await openSellPopup(wrapper)
 
-    await wrapper.find('.sell-group button').trigger('click')
+    await body().find('.modal .btn-primary').trigger('click')
     await flush()
 
     expect(salesApi.create).toHaveBeenCalledWith({
@@ -66,6 +81,7 @@ describe('FairPrepView — quick "Продать"', () => {
       items: [{ product_id: 'p1', quantity: 1, price: '25.00' }],
     })
     expect(fairPrepApi.getPrep).toHaveBeenCalledTimes(2) // initial load + reload after sale
+    expect(body().find('.modal').exists()).toBe(false)
 
     wrapper.unmount()
   })
@@ -73,11 +89,12 @@ describe('FairPrepView — quick "Продать"', () => {
   it('falls back to today when the fair channel has no event_date', async () => {
     fairPrepApi.getPrep.mockResolvedValue({ data: prepWith(null) })
     salesApi.create.mockResolvedValue({ data: {} })
-    const wrapper = mount(FairPrepView)
+    const wrapper = mount(FairPrepView, { attachTo: document.body })
     await flush()
     await selectChannel(wrapper)
+    await openSellPopup(wrapper)
 
-    await wrapper.find('.sell-group button').trigger('click')
+    await body().find('.modal .btn-primary').trigger('click')
     await flush()
 
     const today = new Date().toISOString().slice(0, 10)
@@ -88,18 +105,17 @@ describe('FairPrepView — quick "Продать"', () => {
 
   it('sends an edited quantity and price instead of the defaults', async () => {
     salesApi.create.mockResolvedValue({ data: {} })
-    const wrapper = mount(FairPrepView)
+    const wrapper = mount(FairPrepView, { attachTo: document.body })
     await flush()
     await selectChannel(wrapper)
+    await openSellPopup(wrapper)
 
-    const inputs = wrapper.find('.sell-group').findAll('input')
+    const inputs = body().find('.modal').findAll('input')
     await inputs[0].setValue(3)
     await inputs[1].setValue('20.00')
-    await wrapper.find('.sell-group button').trigger('click')
+    await body().find('.modal .btn-primary').trigger('click')
     await flush()
 
-    // type="number" inputs auto-cast v-model to a JS Number once the user
-    // types into them, even without a .number modifier on the binding.
     expect(salesApi.create).toHaveBeenCalledWith(expect.objectContaining({
       items: [{ product_id: 'p1', quantity: 3, price: 20 }],
     }))
@@ -107,23 +123,24 @@ describe('FairPrepView — quick "Продать"', () => {
     wrapper.unmount()
   })
 
-  it('shows an error and keeps the row editable when the sale fails', async () => {
+  it('shows an error inside the popup and keeps it open when the sale fails', async () => {
     salesApi.create.mockRejectedValue(new Error('Изделие не найдено'))
-    const wrapper = mount(FairPrepView)
+    const wrapper = mount(FairPrepView, { attachTo: document.body })
     await flush()
     await selectChannel(wrapper)
+    await openSellPopup(wrapper)
 
-    await wrapper.find('.sell-group button').trigger('click')
+    await body().find('.modal .btn-primary').trigger('click')
     await flush()
 
-    expect(wrapper.find('.alert-error').text()).toContain('Изделие не найдено')
+    expect(body().find('.alert-error').text()).toContain('Изделие не найдено')
     expect(fairPrepApi.getPrep).toHaveBeenCalledTimes(1) // no reload on failure
-    expect(wrapper.find('.sell-group').exists()).toBe(true) // row still has its inputs
+    expect(body().find('.modal').exists()).toBe(true) // popup stays open to retry
 
     wrapper.unmount()
   })
 
-  it('shows "Продано" instead of the sell form when a sale for this product already exists on the channel', async () => {
+  it('shows "Продано" instead of the "Продать" button when a sale for this product already exists on the channel', async () => {
     salesApi.list.mockResolvedValue({
       data: [{
         id: 's1', channel_id: 'c1', sale_date: '2024-06-15', notes: '',
@@ -131,12 +148,12 @@ describe('FairPrepView — quick "Продать"', () => {
       }],
       meta: { total: 1, page: 1, per_page: 100, pages: 1 },
     })
-    const wrapper = mount(FairPrepView)
+    const wrapper = mount(FairPrepView, { attachTo: document.body })
     await flush()
     await selectChannel(wrapper)
 
     expect(salesApi.list).toHaveBeenCalledWith(expect.objectContaining({ channel_id: 'c1' }))
-    expect(wrapper.find('.sell-group').exists()).toBe(false)
+    expect(wrapper.find('td button.sell-btn').exists()).toBe(false)
     expect(wrapper.text()).toContain('Продано')
 
     wrapper.unmount()
@@ -145,7 +162,7 @@ describe('FairPrepView — quick "Продать"', () => {
   it('switches the row to "Продано" right after a successful quick sale', async () => {
     salesApi.create.mockResolvedValue({ data: {} })
     // First reload (on channel select): nothing sold yet. Second reload
-    // (triggered by sell()): the just-created sale now shows up.
+    // (triggered by confirmSell()): the just-created sale now shows up.
     salesApi.list
       .mockResolvedValueOnce({ data: [], meta: { total: 0, page: 1, per_page: 100, pages: 1 } })
       .mockResolvedValueOnce({
@@ -155,15 +172,16 @@ describe('FairPrepView — quick "Продать"', () => {
         }],
         meta: { total: 1, page: 1, per_page: 100, pages: 1 },
       })
-    const wrapper = mount(FairPrepView)
+    const wrapper = mount(FairPrepView, { attachTo: document.body })
     await flush()
     await selectChannel(wrapper)
-    expect(wrapper.find('.sell-group').exists()).toBe(true)
+    expect(wrapper.find('td button.sell-btn').exists()).toBe(true)
 
-    await wrapper.find('.sell-group button').trigger('click')
+    await openSellPopup(wrapper)
+    await body().find('.modal .btn-primary').trigger('click')
     await flush()
 
-    expect(wrapper.find('.sell-group').exists()).toBe(false)
+    expect(wrapper.find('td button.sell-btn').exists()).toBe(false)
     expect(wrapper.text()).toContain('Продано')
 
     wrapper.unmount()
