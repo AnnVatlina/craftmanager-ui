@@ -32,9 +32,9 @@
       </div>
     </div>
 
-    <div v-if="!loading && meta.total > 0" class="summary-bar">
-      <span>Всего: <strong>{{ meta.total }}</strong> изд.</span>
-      <span>Стоимость склада: <strong>{{ fmt(meta.total_stock_value) }} {{ cur }}</strong></span>
+    <div v-if="!loading" class="summary-bar">
+      <span>В наличии: <strong>{{ meta.in_stock_count }}</strong> изд.</span>
+      <span>Стоимость в наличии: <strong>{{ fmt(meta.in_stock_value) }} {{ cur }}</strong></span>
     </div>
 
     <div class="card">
@@ -136,7 +136,7 @@ const filterCategory = ref('')
 const filterInStock = ref('')
 const filterSearch = ref('')
 let searchTimer
-const meta = ref({ total: 0, page: 1, pages: 1, per_page: 20, total_stock_value: 0 })
+const meta = ref({ total: 0, page: 1, pages: 1, per_page: 20, total_stock_value: 0, in_stock_count: 0, in_stock_value: 0 })
 const form = reactive({ name: '', category: '', sale_price: '', stock_qty: 0, produced_at: '', description: '' })
 const restockForm = reactive({ qty: '', produced_at: '' })
 
