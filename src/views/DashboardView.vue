@@ -37,6 +37,33 @@
           </div>
         </div>
       </div>
+
+      <div class="card" style="margin-top:16px">
+        <div style="font-weight:600;margin-bottom:12px;">Результаты по ярмаркам</div>
+        <div v-if="!fairChannels.length" class="empty" style="padding:12px 0">Ярмарок пока нет</div>
+        <div v-else class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Ярмарка</th>
+                <th>Дата</th>
+                <th style="text-align:center">Взято</th>
+                <th style="text-align:center">Продано</th>
+                <th style="text-align:right">Выручка</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="f in fairChannels" :key="f.channel_id">
+                <td>{{ f.channel_name }}</td>
+                <td>{{ fmtDate(f.event_date) }}</td>
+                <td style="text-align:center">{{ f.total_planned }}</td>
+                <td style="text-align:center">{{ f.total_sold }}</td>
+                <td style="text-align:right">{{ fmt(f.total_revenue) }} {{ cur }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </template>
   </div>
 </template>
@@ -50,9 +77,13 @@ const loading = ref(true)
 const dateFrom = ref('')
 const dateTo = ref('')
 const summary = ref({ total_revenue: 0, total_expenses: 0, manual_expenses: 0, material_expenses: 0, profit: 0 })
+// Planned-vs-sold per fair is always all-time (see GET /dashboard/fair-channels)
+// and doesn't react to the С/По filter above — loaded once, separately.
+const fairChannels = ref([])
 
 const cur = computed(() => settingsStore.currency)
 const fmt = (v) => Number(v || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString('ru-RU') : '—'
 
 async function load() {
   loading.value = true
@@ -67,5 +98,13 @@ async function load() {
   }
 }
 
-onMounted(load)
+async function loadFairChannels() {
+  const res = await dashboardApi.fairChannels()
+  fairChannels.value = res.data
+}
+
+onMounted(() => {
+  load()
+  loadFairChannels()
+})
 </script>
