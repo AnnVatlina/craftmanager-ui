@@ -11,6 +11,7 @@ vi.mock('../../src/api/products.js', () => ({
     productions: vi.fn(),
     updateProduction: vi.fn(),
     deleteProduction: vi.fn(),
+    restock: vi.fn(),
   },
 }))
 vi.mock('../../src/api/materials.js', () => ({ materialsApi: { list: vi.fn() } }))
@@ -33,7 +34,41 @@ describe('ProductDetailView — редактирование/удаление п
     productsApi.productions.mockReset().mockResolvedValue({ data: [BATCH] })
     productsApi.updateProduction.mockReset().mockResolvedValue({ data: { ...BATCH, quantity: 5 } })
     productsApi.deleteProduction.mockReset().mockResolvedValue(null)
+    productsApi.restock.mockReset().mockResolvedValue({ data: { ...PRODUCT, stock_qty: 16 } })
     materialsApi.list.mockReset().mockResolvedValue({ data: [] })
+  })
+
+  it('opens the restock modal from the "Пополнить" button and submits it', async () => {
+    // restockForm is a reactive object passed to productsApi.restock by reference,
+    // and load() mutates it right after (resetting qty) — so the mock must snapshot
+    // the payload at call time rather than reading it back from .mock.calls later.
+    let submittedPayload = null
+    productsApi.restock.mockImplementation((id, data) => {
+      submittedPayload = { ...data }
+      return Promise.resolve({ data: { ...PRODUCT, stock_qty: 16 } })
+    })
+
+    const wrapper = mount(ProductDetailView)
+    await flush()
+
+    const restockBtn = wrapper.findAll('button').find((b) => b.text() === 'Пополнить')
+    expect(restockBtn).toBeTruthy()
+    await restockBtn.trigger('click')
+    await flush()
+
+    expect(body().text()).toContain('Пополнить остаток')
+    const qtyInput = body().find('input[type="number"][min="1"]')
+    await qtyInput.setValue(3)
+    await flush()
+    const submitButtons = body().findAll('button').filter((b) => b.text() === 'Пополнить')
+    await submitButtons[0].trigger('click')
+    await flush()
+
+    expect(productsApi.restock).toHaveBeenCalledWith('p1', expect.anything())
+    expect(submittedPayload).toEqual(expect.objectContaining({ qty: 3 }))
+    expect(body().text()).not.toContain('Пополнить остаток') // modal closes on success
+
+    wrapper.unmount()
   })
 
   it('opens the edit modal prefilled with the batch, and saves the correction', async () => {

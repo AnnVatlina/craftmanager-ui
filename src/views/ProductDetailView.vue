@@ -166,6 +166,7 @@ const loading = ref(true)
 const uploading = ref(false)
 const showEdit = ref(false)
 const showAddMaterial = ref(false)
+const showRestock = ref(false)
 const restocking = ref(false)
 const allMaterials = ref([])
 const matError = ref('')
@@ -221,6 +222,7 @@ async function restock() {
   restockError.value = ''
   try {
     await productsApi.restock(route.params.id, restockForm)
+    showRestock.value = false
     await load()
   } catch (e) { restockError.value = e.message }
   finally { restocking.value = false }
