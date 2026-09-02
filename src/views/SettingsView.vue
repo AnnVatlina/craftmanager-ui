@@ -13,10 +13,6 @@
         <label>Символ валюты</label>
         <input v-model="form.currency" placeholder="Br" style="max-width:120px" />
       </div>
-      <div class="form-group">
-        <label>Порог низкого остатка (шт)</label>
-        <input v-model.number="form.low_stock_threshold" type="number" min="1" style="max-width:120px" />
-      </div>
 
       <hr style="border:none;border-top:1px solid var(--border);margin:20px 0" />
 
@@ -99,7 +95,7 @@ const exportError = ref('')
 const importing = ref(false)
 const importError = ref('')
 const importResult = ref(null)
-const form = reactive({ currency: 'Br', categories: [], expense_categories: [], material_units: [], low_stock_threshold: 5 })
+const form = reactive({ currency: 'Br', categories: [], expense_categories: [], material_units: [] })
 
 async function load() {
   await settingsStore.load()
@@ -107,7 +103,6 @@ async function load() {
   form.categories = [...settingsStore.categories]
   form.expense_categories = [...settingsStore.expense_categories]
   form.material_units = [...settingsStore.material_units]
-  form.low_stock_threshold = settingsStore.low_stock_threshold
 }
 
 async function save() {
@@ -120,7 +115,6 @@ async function save() {
       categories: form.categories.filter(c => c.trim()),
       expense_categories: form.expense_categories.filter(c => c.trim()),
       material_units: form.material_units.filter(c => c.trim()),
-      low_stock_threshold: form.low_stock_threshold,
     })
     await settingsStore.load()
     saved.value = true
