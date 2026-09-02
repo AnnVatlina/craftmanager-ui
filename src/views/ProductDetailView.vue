@@ -72,12 +72,16 @@
           <div v-if="!productions.length" class="empty" style="padding:20px 0;font-size:13px">Пополнений пока нет</div>
           <div v-else class="table-wrap">
             <table>
-              <thead><tr><th>Дата</th><th>Количество</th><th>Источник</th></tr></thead>
+              <thead><tr><th>Дата</th><th>Количество</th><th>Источник</th><th></th></tr></thead>
               <tbody>
                 <tr v-for="production in productions" :key="production.id">
                   <td>{{ fmtDate(production.produced_at) }}</td>
                   <td>{{ production.quantity }} шт</td>
                   <td>{{ productionSource(production.source) }}</td>
+                  <td style="white-space:nowrap">
+                    <button class="btn-icon" title="Редактировать" @click="openEditProduction(production)">✏️</button>
+                    <button class="btn-icon" title="Удалить" @click="removeProduction(production)">🗑</button>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -133,6 +137,18 @@
         <button class="btn btn-primary" @click="restock" :disabled="restocking">{{ restocking ? 'Сохранение...' : 'Пополнить' }}</button>
       </template>
     </BaseModal>
+
+    <BaseModal v-if="showEditProduction" title="Исправить запись пополнения" @close="showEditProduction = false">
+      <div v-if="productionEditError" class="alert alert-error">{{ productionEditError }}</div>
+      <div class="form-row">
+        <div class="form-group"><label>Количество *</label><input v-model.number="productionEditForm.quantity" type="number" min="1" step="1" /></div>
+        <div class="form-group"><label>Дата производства</label><input v-model="productionEditForm.produced_at" type="date" /></div>
+      </div>
+      <template #footer>
+        <button class="btn btn-secondary" @click="showEditProduction = false">Отмена</button>
+        <button class="btn btn-primary" @click="saveEditProduction" :disabled="savingProduction">{{ savingProduction ? 'Сохранение...' : 'Сохранить' }}</button>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
@@ -158,6 +174,11 @@ const editForm = reactive({})
 const matForm = reactive({ material_id: '', quantity: '' })
 const restockForm = reactive({ qty: '', produced_at: '' })
 const productions = ref([])
+const showEditProduction = ref(false)
+const savingProduction = ref(false)
+const productionEditError = ref('')
+const editingProduction = ref(null)
+const productionEditForm = reactive({ quantity: '', produced_at: '' })
 
 const cur = computed(() => settingsStore.currency)
 const categories = computed(() => settingsStore.categories)
@@ -203,6 +224,34 @@ async function restock() {
     await load()
   } catch (e) { restockError.value = e.message }
   finally { restocking.value = false }
+}
+
+function openEditProduction(production) {
+  editingProduction.value = production
+  productionEditError.value = ''
+  Object.assign(productionEditForm, { quantity: production.quantity, produced_at: production.produced_at })
+  showEditProduction.value = true
+}
+
+async function saveEditProduction() {
+  if (!productionEditForm.quantity || productionEditForm.quantity < 1) {
+    productionEditError.value = 'Укажите количество'
+    return
+  }
+  savingProduction.value = true
+  productionEditError.value = ''
+  try {
+    await productsApi.updateProduction(route.params.id, editingProduction.value.id, productionEditForm)
+    showEditProduction.value = false
+    await load()
+  } catch (e) { productionEditError.value = e.message }
+  finally { savingProduction.value = false }
+}
+
+async function removeProduction(production) {
+  if (!confirm(`Удалить запись пополнения на ${production.quantity} шт от ${fmtDate(production.produced_at)}?`)) return
+  await productsApi.deleteProduction(route.params.id, production.id)
+  await load()
 }
 
 async function addMaterial() {
