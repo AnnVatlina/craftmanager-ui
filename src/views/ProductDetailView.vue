@@ -88,6 +88,25 @@
           </div>
         </div>
       </div>
+
+      <div v-if="productSales.length" class="card" style="margin-top:24px">
+        <div class="section-title">Продажи</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Дата</th><th>Кол-во</th><th>Цена</th><th>Сумма</th><th>Канал</th><th>Заметки</th></tr></thead>
+            <tbody>
+              <tr v-for="row in productSales" :key="row.itemId">
+                <td>{{ fmtDate(row.sale_date) }}</td>
+                <td>{{ row.quantity }}</td>
+                <td>{{ row.price }} {{ cur }}</td>
+                <td>{{ (row.quantity * row.price).toFixed(2) }} {{ cur }}</td>
+                <td>{{ channelName(row.channel_id) || '—' }}</td>
+                <td style="color:var(--text-muted)">{{ row.notes || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </template>
 
     <BaseModal v-if="showEdit" title="Редактировать изделие" @close="showEdit = false">
@@ -158,6 +177,8 @@ import { useRoute } from 'vue-router'
 import BaseModal from '../components/BaseModal.vue'
 import { productsApi } from '../api/products.js'
 import { materialsApi } from '../api/materials.js'
+import { salesApi } from '../api/sales.js'
+import { channelsApi } from '../api/channels.js'
 import { settingsStore } from '../stores/settings.js'
 
 const route = useRoute()
@@ -180,9 +201,31 @@ const savingProduction = ref(false)
 const productionEditError = ref('')
 const editingProduction = ref(null)
 const productionEditForm = reactive({ quantity: '', produced_at: '' })
+const sales = ref([])
+const channels = ref([])
 
 const cur = computed(() => settingsStore.currency)
 const categories = computed(() => settingsStore.categories)
+const channelName = (id) => channels.value.find((c) => c.id === id)?.name
+// One row per sale item that's actually this product — a sale can carry
+// other products too, and those items are irrelevant here.
+const productSales = computed(() => {
+  const rows = []
+  for (const sale of sales.value) {
+    for (const item of sale.items) {
+      if (item.product_id !== route.params.id) continue
+      rows.push({
+        itemId: item.id,
+        sale_date: sale.sale_date,
+        channel_id: sale.channel_id,
+        notes: sale.notes,
+        quantity: item.quantity,
+        price: item.price,
+      })
+    }
+  }
+  return rows
+})
 const margin = computed(() => {
   if (!product.value?.cost_price) return 0
   return Math.round((product.value.sale_price - product.value.cost_price) / product.value.sale_price * 100)
@@ -194,14 +237,18 @@ const productionSource = (source) => source === 'backfill' ? 'Восстанов
 async function load() {
   loading.value = true
   try {
-    const [p, m, history] = await Promise.all([
+    const [p, m, history, salesRes, channelsRes] = await Promise.all([
       productsApi.get(route.params.id),
       materialsApi.list(),
       productsApi.productions(route.params.id),
+      salesApi.list({ product_id: route.params.id, per_page: 1000 }),
+      channelsApi.list(),
     ])
     product.value = p.data
     allMaterials.value = m.data
     productions.value = history.data
+    sales.value = salesRes.data
+    channels.value = channelsRes.data
     Object.assign(editForm, { name: p.data.name, category: p.data.category || '', sale_price: p.data.sale_price, stock_qty: p.data.stock_qty, description: p.data.description || '' })
     Object.assign(restockForm, { qty: '', produced_at: today() })
   } finally { loading.value = false }

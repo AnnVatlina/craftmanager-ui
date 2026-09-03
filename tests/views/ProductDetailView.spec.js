@@ -3,6 +3,8 @@ import { mount, DOMWrapper } from '@vue/test-utils'
 import ProductDetailView from '../../src/views/ProductDetailView.vue'
 import { productsApi } from '../../src/api/products.js'
 import { materialsApi } from '../../src/api/materials.js'
+import { salesApi } from '../../src/api/sales.js'
+import { channelsApi } from '../../src/api/channels.js'
 
 vi.mock('vue-router', () => ({ useRoute: () => ({ params: { id: 'p1' } }) }))
 vi.mock('../../src/api/products.js', () => ({
@@ -15,6 +17,8 @@ vi.mock('../../src/api/products.js', () => ({
   },
 }))
 vi.mock('../../src/api/materials.js', () => ({ materialsApi: { list: vi.fn() } }))
+vi.mock('../../src/api/sales.js', () => ({ salesApi: { list: vi.fn() } }))
+vi.mock('../../src/api/channels.js', () => ({ channelsApi: { list: vi.fn() } }))
 
 // BaseModal teleports its content to <body>, escaping the mounted wrapper's own DOM tree.
 function body() {
@@ -36,6 +40,8 @@ describe('ProductDetailView — редактирование/удаление п
     productsApi.deleteProduction.mockReset().mockResolvedValue(null)
     productsApi.restock.mockReset().mockResolvedValue({ data: { ...PRODUCT, stock_qty: 16 } })
     materialsApi.list.mockReset().mockResolvedValue({ data: [] })
+    salesApi.list.mockReset().mockResolvedValue({ data: [] })
+    channelsApi.list.mockReset().mockResolvedValue({ data: [] })
   })
 
   it('opens the restock modal from the "Пополнить" button and submits it', async () => {
@@ -118,6 +124,53 @@ describe('ProductDetailView — редактирование/удаление п
     expect(productsApi.deleteProduction).not.toHaveBeenCalled()
 
     confirmSpy.mockRestore()
+    wrapper.unmount()
+  })
+})
+
+describe('ProductDetailView — продажи изделия', () => {
+  beforeEach(() => {
+    productsApi.get.mockReset().mockResolvedValue({ data: PRODUCT })
+    productsApi.productions.mockReset().mockResolvedValue({ data: [] })
+    materialsApi.list.mockReset().mockResolvedValue({ data: [] })
+    channelsApi.list.mockReset().mockResolvedValue({ data: [{ id: 'c1', name: 'Ярмарка Х' }] })
+  })
+
+  it('hides the sales block entirely when the product has no sales', async () => {
+    salesApi.list.mockReset().mockResolvedValue({ data: [] })
+    const wrapper = mount(ProductDetailView)
+    await flush()
+
+    expect(wrapper.text()).not.toContain('Продажи')
+
+    wrapper.unmount()
+  })
+
+  it('shows one row per matching sale item, resolving the channel name', async () => {
+    salesApi.list.mockReset().mockResolvedValue({
+      data: [
+        {
+          id: 's1', sale_date: '2026-08-20', channel_id: 'c1', notes: 'Со скидкой',
+          items: [
+            { id: 'i1', product_id: 'p1', quantity: 2, price: '50.00', product_name: 'Мишка' },
+            { id: 'i2', product_id: 'other', quantity: 1, price: '5.00', product_name: 'Другое' },
+          ],
+        },
+      ],
+    })
+    const wrapper = mount(ProductDetailView)
+    await flush()
+
+    expect(salesApi.list).toHaveBeenCalledWith(expect.objectContaining({ product_id: 'p1' }))
+    const salesCard = wrapper.findAll('.card').find((c) => c.text().includes('Продажи'))
+    const rows = salesCard.findAll('tbody tr')
+    expect(rows).toHaveLength(1) // the other product's item is excluded
+    const rowText = rows[0].text()
+    expect(rowText).toContain('20.08.2026')
+    expect(rowText).toContain('2')
+    expect(rowText).toContain('Ярмарка Х')
+    expect(rowText).toContain('Со скидкой')
+
     wrapper.unmount()
   })
 })
