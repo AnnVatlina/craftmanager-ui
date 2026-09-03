@@ -1,0 +1,1 @@
+import{a}from"./client-Dn12mrUS.js";const p={list:(e={})=>{const s=new URLSearchParams(e).toString();return a.get(`/api/v1/sales${s?"?"+s:""}`)},get:e=>a.get(`/api/v1/sales/${e}`),create:e=>a.post("/api/v1/sales",e),update:(e,s)=>a.put(`/api/v1/sales/${e}`,s),delete:e=>a.delete(`/api/v1/sales/${e}`)};export{p as s};
